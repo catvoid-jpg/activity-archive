@@ -40,3 +40,46 @@ body {
   font-size: 1.25rem;
   margin: 0 0 8px;
 }
+
+/* 진입 화면 폼 (모바일 우선 단일 컬럼) */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.form__label {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.form__input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1rem;
+  border: 1px solid #c9c9cf;
+  border-radius: 6px;
+}
+
+.form__button {
+  padding: 10px 12px;
+  font-size: 1rem;
+  color: #fff;
+  background: #2f6fed;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.form__button:disabled {
+  background: #9db8f2;
+  cursor: default;
+}
+
+.form__message {
+  min-height: 1.2em;
+  margin: 4px 0 0;
+  color: #c0392b;
+  font-size: 0.9rem;
+}

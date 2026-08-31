@@ -6,14 +6,30 @@
  * - HTTPS·JSON 전제(Requirement 13.3): 앱은 JSON 요청/응답을 처리하고,
  *   HTTPS 종단은 배포 플랫폼(무료 티어 호스팅)이 담당한다.
  * - 헬스체크 라우트로 배포 파이프라인·기동 확인을 지원한다.
- * - 라우트 모듈은 이후 태스크에서 이 앱에 등록한다.
+ * - 기능 라우트는 이 앱에 등록하며, 404/오류 핸들러보다 먼저 등록해야 한다.
  */
 
 const express = require('express');
 const { describeConfig } = require('./config');
+const { getDatabase } = require('./db');
+const { createInviteCodeRepository } = require('./db/inviteCodeRepository');
+const { createActivityRepository } = require('./db/activityRepository');
+const { createRequireInviteCode } = require('./middleware/ownership');
+const { createSessionRouter } = require('./routes/session');
+const { createActivitiesRouter } = require('./routes/activities');
 
-function createApp() {
+/**
+ * @param {object} [options]
+ * @param {import('node:sqlite').DatabaseSync} [options.db] - 테스트에서 인메모리 DB 주입 가능
+ */
+function createApp(options = {}) {
+  const db = options.db || getDatabase();
+  const inviteCodeRepo = createInviteCodeRepository(db);
+  const activityRepo = createActivityRepository(db);
+  const requireInviteCode = createRequireInviteCode(inviteCodeRepo);
+
   const app = express();
+  app.locals.db = db;
 
   // 프록시(무료 티어 호스팅) 뒤에서 실제 프로토콜/호스트를 신뢰한다.
   app.set('trust proxy', true);
@@ -29,6 +45,12 @@ function createApp() {
       config: describeConfig(),
     });
   });
+
+  // 초대 코드 진입(세션) 라우트. 소유권 미들웨어를 거치지 않는다.
+  app.use(createSessionRouter(inviteCodeRepo));
+
+  // 활동 기록 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
+  app.use(createActivitiesRouter({ activityRepo, requireInviteCode }));
 
   // 알 수 없는 경로 처리.
   app.use((req, res) => {

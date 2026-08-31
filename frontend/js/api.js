@@ -91,10 +91,27 @@ export async function apiRequest(path, options = {}) {
   return data;
 }
 
+/**
+ * 초대 코드로 진입 세션을 생성한다(Requirement 1.1, 1.2).
+ * 성공 시 진입 상태를 브라우저에 유지한다(Requirement 1.3).
+ * @param {string} inviteCode
+ * @returns {Promise<{inviteCode: string, needsOnboarding: boolean}>}
+ */
+export async function createSession(inviteCode) {
+  const data = await apiRequest('/api/session', {
+    method: 'POST',
+    body: { inviteCode },
+    skipInviteCode: true,
+  });
+  setInviteCode(data.inviteCode);
+  return data;
+}
+
 export const api = {
   request: apiRequest,
   getInviteCode,
   setInviteCode,
   clearInviteCode,
+  createSession,
   health: () => apiRequest('/api/health', { skipInviteCode: true }),
 };

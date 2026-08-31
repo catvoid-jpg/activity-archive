@@ -1,0 +1,19 @@
+{
+  "name": "activity-archive-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "활동기록 아카이브 백엔드 API 서버",
+  "type": "commonjs",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,40 @@
+# Render 배포 설정 (Blueprint).
+# 리포 루트(activity-archive/)에 두며, backend/ 와 frontend/ 를 함께 배포한다.
+# 백엔드가 frontend/ 를 정적 파일로 서빙하므로 단일 웹 서비스로 운영한다.
+#
+# 비밀값(API 키, DATABASE_URL)은 이 파일에 하드코딩하지 않는다.
+#  - DATABASE_URL 은 아래 Postgres 인스턴스에서 fromDatabase 로 주입한다.
+#  - AI_API_KEY 는 sync:false 로 두어 Render 대시보드에서 직접 입력한다.
+
+databases:
+  - name: activity-archive-db
+    plan: free            # 무료 티어
+    databaseName: activity_archive_db
+
+services:
+  - type: web
+    name: activity-archive
+    runtime: node
+    plan: free            # 무료 티어
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      # Postgres 연결 문자열: DB 인스턴스에서 자동 주입(하드코딩 금지)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: activity-archive-db
+          property: connectionString
+      # 외부 LLM API 키: 대시보드에서 직접 입력(코드/설정 파일에 두지 않음)
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_API_BASE_URL
+        sync: false
+      # 비용 통제 상한값(설계상 임의 고정 금지 → 배포 환경 설정값)
+      - key: AI_MONTHLY_CALL_LIMIT
+        sync: false
+      - key: AI_INPUT_CHAR_LIMIT
+        sync: false

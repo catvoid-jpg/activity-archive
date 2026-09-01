@@ -16,18 +16,22 @@
 const INVITE_CODE_HEADER = 'x-invite-code'; // Express 는 헤더명을 소문자로 정규화한다.
 
 function createRequireInviteCode(inviteCodeRepo) {
-  return function requireInviteCode(req, res, next) {
-    const code = req.get(INVITE_CODE_HEADER);
+  return async function requireInviteCode(req, res, next) {
+    try {
+      const code = req.get(INVITE_CODE_HEADER);
 
-    if (!code) {
-      return res.status(401).json({ error: 'invite_code_required' });
-    }
-    if (!inviteCodeRepo.exists(code)) {
-      return res.status(403).json({ error: 'invalid_invite_code' });
-    }
+      if (!code) {
+        return res.status(401).json({ error: 'invite_code_required' });
+      }
+      if (!(await inviteCodeRepo.exists(code))) {
+        return res.status(403).json({ error: 'invalid_invite_code' });
+      }
 
-    req.inviteCode = code;
-    next();
+      req.inviteCode = code;
+      next();
+    } catch (err) {
+      next(err);
+    }
   };
 }
 

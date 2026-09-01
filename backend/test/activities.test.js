@@ -11,20 +11,20 @@ let server;
 let baseUrl;
 
 before(async () => {
-  db = openDatabase(':memory:');
-  db.prepare('INSERT INTO invite_code (code) VALUES (?)').run('OWNER');
-  db.prepare('INSERT INTO invite_code (code) VALUES (?)').run('OTHER');
+  db = await openDatabase(':memory:');
+  await db.query('INSERT INTO invite_code (code) VALUES (?)', ['OWNER']);
+  await db.query('INSERT INTO invite_code (code) VALUES (?)', ['OTHER']);
 
-  const app = createApp({ db });
+  const app = await createApp({ db });
   await new Promise((resolve) => {
     server = app.listen(0, resolve);
   });
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => {
+after(async () => {
   if (server) server.close();
-  if (db) db.close();
+  if (db) await db.close();
 });
 
 async function req(method, path, { code, body } = {}) {
@@ -91,10 +91,11 @@ test('GET /api/activities/:id 상세는 START 5요소와 태그를 반환한다'
   const id = created.data.activity.id;
 
   // Action 답변 하나를 직접 삽입(태그 부여 태스크는 아직 없음)
-  db.prepare(
+  await db.query(
     `INSERT INTO activity_answer (activity_id, start_element, question_text, answer_text, assigned_tags)
-     VALUES (?, 'A', '무엇을 했나요?', '자동화 스크립트를 만들었다', ?)`
-  ).run(id, JSON.stringify(['도구활용', '협업']));
+     VALUES (?, 'A', '무엇을 했나요?', '자동화 스크립트를 만들었다', ?)`,
+    [id, JSON.stringify(['도구활용', '협업'])]
+  );
 
   const detail = await req('GET', `/api/activities/${id}`, { code: 'OWNER' });
   assert.strictEqual(detail.status, 200);

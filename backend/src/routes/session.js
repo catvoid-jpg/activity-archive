@@ -16,30 +16,34 @@ const express = require('express');
 function createSessionRouter(inviteCodeRepo) {
   const router = express.Router();
 
-  router.post('/api/session', (req, res) => {
-    const code = req.body && req.body.inviteCode;
+  router.post('/api/session', async (req, res, next) => {
+    try {
+      const code = req.body && req.body.inviteCode;
 
-    if (typeof code !== 'string' || code.trim().length === 0) {
-      return res.status(400).json({
-        error: 'invite_code_required',
-        message: '초대 코드를 입력해 주세요.',
+      if (typeof code !== 'string' || code.trim().length === 0) {
+        return res.status(400).json({
+          error: 'invite_code_required',
+          message: '초대 코드를 입력해 주세요.',
+        });
+      }
+
+      const trimmed = code.trim();
+      if (!(await inviteCodeRepo.exists(trimmed))) {
+        // 유효하지 않은 초대 코드: 진입 거부 + 안내 메시지 (Requirement 1.2)
+        return res.status(403).json({
+          error: 'invalid_invite_code',
+          message: '유효하지 않은 초대 코드입니다. 코드를 다시 확인해 주세요.',
+        });
+      }
+
+      // 유효한 코드: 식별자로 인정하고 최초 진입 여부 반환 (Requirement 1.1, 9)
+      return res.json({
+        inviteCode: trimmed,
+        needsOnboarding: await inviteCodeRepo.needsOnboarding(trimmed),
       });
+    } catch (err) {
+      return next(err);
     }
-
-    const trimmed = code.trim();
-    if (!inviteCodeRepo.exists(trimmed)) {
-      // 유효하지 않은 초대 코드: 진입 거부 + 안내 메시지 (Requirement 1.2)
-      return res.status(403).json({
-        error: 'invalid_invite_code',
-        message: '유효하지 않은 초대 코드입니다. 코드를 다시 확인해 주세요.',
-      });
-    }
-
-    // 유효한 코드: 식별자로 인정하고 최초 진입 여부 반환 (Requirement 1.1, 9)
-    return res.json({
-      inviteCode: trimmed,
-      needsOnboarding: inviteCodeRepo.needsOnboarding(trimmed),
-    });
   });
 
   return router;

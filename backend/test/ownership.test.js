@@ -17,9 +17,9 @@ let server;
 let baseUrl;
 
 before(async () => {
-  db = openDatabase(':memory:');
-  db.prepare('INSERT INTO invite_code (code) VALUES (?)').run('OWNER');
-  db.prepare('INSERT INTO invite_code (code) VALUES (?)').run('OTHER');
+  db = await openDatabase(':memory:');
+  await db.query('INSERT INTO invite_code (code) VALUES (?)', ['OWNER']);
+  await db.query('INSERT INTO invite_code (code) VALUES (?)', ['OTHER']);
 
   const inviteRepo = createInviteCodeRepository(db);
   const app = express();
@@ -39,9 +39,9 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => {
+after(async () => {
   if (server) server.close();
-  if (db) db.close();
+  if (db) await db.close();
 });
 
 async function get(headers) {

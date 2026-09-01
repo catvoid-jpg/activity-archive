@@ -107,85 +107,105 @@ function createActivitiesRouter({ activityRepo, requireInviteCode }) {
   router.use('/api/activities', requireInviteCode);
 
   // 활동 등록
-  router.post('/api/activities', (req, res) => {
-    const body = req.body || {};
+  router.post('/api/activities', async (req, res, next) => {
+    try {
+      const body = req.body || {};
 
-    for (const field of REQUIRED_TEXT_FIELDS) {
-      if (!isNonEmptyString(body[field])) {
-        return res.status(400).json({ error: 'invalid_field', field });
+      for (const field of REQUIRED_TEXT_FIELDS) {
+        if (!isNonEmptyString(body[field])) {
+          return res.status(400).json({ error: 'invalid_field', field });
+        }
       }
-    }
-    if (!ACTIVITY_TYPES.includes(body.type)) {
-      return res.status(400).json({ error: 'invalid_field', field: 'type' });
-    }
+      if (!ACTIVITY_TYPES.includes(body.type)) {
+        return res.status(400).json({ error: 'invalid_field', field: 'type' });
+      }
 
-    const created = activityRepo.create({
-      invite_code: req.inviteCode,
-      name: body.name.trim(),
-      period: body.period.trim(),
-      affiliation: body.affiliation.trim(),
-      type: body.type,
-      situation: body.situation.trim(),
-      task: body.task.trim(),
-      is_seed: 0,
-    });
+      const created = await activityRepo.create({
+        invite_code: req.inviteCode,
+        name: body.name.trim(),
+        period: body.period.trim(),
+        affiliation: body.affiliation.trim(),
+        type: body.type,
+        situation: body.situation.trim(),
+        task: body.task.trim(),
+        is_seed: 0,
+      });
 
-    return res.status(201).json({ activity: toListItem(created) });
+      return res.status(201).json({ activity: toListItem(created) });
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // 소유 활동 목록 조회
-  router.get('/api/activities', (req, res) => {
-    const items = activityRepo.listByOwner(req.inviteCode).map(toListItem);
-    return res.json({ activities: items });
+  router.get('/api/activities', async (req, res, next) => {
+    try {
+      const rows = await activityRepo.listByOwner(req.inviteCode);
+      return res.json({ activities: rows.map(toListItem) });
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // 활동 상세(START 5요소 + 태그)
-  router.get('/api/activities/:id', (req, res) => {
-    const activity = activityRepo.getById(Number(req.params.id));
-    if (!assertOwnership(res, activity, req.inviteCode)) return;
+  router.get('/api/activities/:id', async (req, res, next) => {
+    try {
+      const activity = await activityRepo.getById(Number(req.params.id));
+      if (!assertOwnership(res, activity, req.inviteCode)) return undefined;
 
-    const answers = activityRepo.listAnswers(activity.id);
-    return res.json({ activity: buildActivityDetail(activity, answers) });
+      const answers = await activityRepo.listAnswers(activity.id);
+      return res.json({ activity: buildActivityDetail(activity, answers) });
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // 활동 삭제(시드 포함)
-  router.delete('/api/activities/:id', (req, res) => {
-    const activity = activityRepo.getById(Number(req.params.id));
-    if (!assertOwnership(res, activity, req.inviteCode)) return;
+  router.delete('/api/activities/:id', async (req, res, next) => {
+    try {
+      const activity = await activityRepo.getById(Number(req.params.id));
+      if (!assertOwnership(res, activity, req.inviteCode)) return undefined;
 
-    activityRepo.delete(activity.id);
-    return res.status(204).end();
+      await activityRepo.delete(activity.id);
+      return res.status(204).end();
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // 심화 질문 답변 텍스트만 수정 (Requirement 2.3)
   // - AI_Service 를 재호출하지 않고 기존 태그를 유지한다(라우트/레포 어디서도 AI·태그를 건드리지 않음).
   // - 활동 메타(name/period/affiliation/type)는 이 엔드포인트로도, 다른 어떤 엔드포인트로도 수정할 수 없다.
-  router.patch('/api/activities/:id/answers/:answerId', (req, res) => {
-    const activity = activityRepo.getById(Number(req.params.id));
-    if (!assertOwnership(res, activity, req.inviteCode)) return;
+  router.patch('/api/activities/:id/answers/:answerId', async (req, res, next) => {
+    try {
+      const activity = await activityRepo.getById(Number(req.params.id));
+      if (!assertOwnership(res, activity, req.inviteCode)) return undefined;
 
-    const answer = activityRepo.getAnswerById(Number(req.params.answerId));
-    // 답변이 없거나 이 활동에 속하지 않으면 노출 방지를 위해 404.
-    if (!answer || answer.activity_id !== activity.id) {
-      return res.status(404).json({ error: 'not_found' });
+      const answer = await activityRepo.getAnswerById(Number(req.params.answerId));
+      // 답변이 없거나 이 활동에 속하지 않으면 노출 방지를 위해 404.
+      if (!answer || answer.activity_id !== activity.id) {
+        return res.status(404).json({ error: 'not_found' });
+      }
+
+      const body = req.body || {};
+      if (typeof body.answerText !== 'string') {
+        return res.status(400).json({ error: 'invalid_field', field: 'answerText' });
+      }
+
+      const updated = await activityRepo.updateAnswerText(answer.id, body.answerText);
+      return res.json({
+        answer: {
+          id: updated.id,
+          startElement: updated.start_element,
+          questionText: updated.question_text,
+          answerText: updated.answer_text,
+          // 태그는 수정 대상이 아니며 기존 값이 그대로 유지된다.
+          tags: parseAssignedTags(updated.assigned_tags),
+        },
+      });
+    } catch (err) {
+      return next(err);
     }
-
-    const body = req.body || {};
-    if (typeof body.answerText !== 'string') {
-      return res.status(400).json({ error: 'invalid_field', field: 'answerText' });
-    }
-
-    const updated = activityRepo.updateAnswerText(answer.id, body.answerText);
-    return res.json({
-      answer: {
-        id: updated.id,
-        startElement: updated.start_element,
-        questionText: updated.question_text,
-        answerText: updated.answer_text,
-        // 태그는 수정 대상이 아니며 기존 값이 그대로 유지된다.
-        tags: parseAssignedTags(updated.assigned_tags),
-      },
-    });
   });
 
   return router;

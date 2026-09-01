@@ -11,14 +11,15 @@ let server;
 let baseUrl;
 
 before(async () => {
-  db = openDatabase(':memory:');
+  db = await openDatabase(':memory:');
   // 사전 발급 초대 코드 2개: 하나는 신규(온보딩 필요), 하나는 온보딩 완료
-  db.prepare('INSERT INTO invite_code (code) VALUES (?)').run('NEW-CODE');
-  db.prepare("INSERT INTO invite_code (code, onboarded_at) VALUES (?, datetime('now'))").run(
-    'DONE-CODE'
+  await db.query('INSERT INTO invite_code (code) VALUES (?)', ['NEW-CODE']);
+  await db.query(
+    'INSERT INTO invite_code (code, onboarded_at) VALUES (?, CURRENT_TIMESTAMP)',
+    ['DONE-CODE']
   );
 
-  const app = createApp({ db });
+  const app = await createApp({ db });
   await new Promise((resolve) => {
     server = app.listen(0, resolve);
   });
@@ -26,9 +27,9 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${port}`;
 });
 
-after(() => {
+after(async () => {
   if (server) server.close();
-  if (db) db.close();
+  if (db) await db.close();
 });
 
 async function post(path, body) {

@@ -3,69 +3,81 @@
 /**
  * DB 연결 및 스키마 적용.
  *
- * - 개발/로컬은 node:sqlite(내장) 기반 SQLite 파일을 사용한다. 추가 의존성이 없다.
- * - DATABASE_URL 이 지정되면 그 경로의 파일을, 없으면 backend/data/activity-archive.sqlite 를 쓴다.
- *   ':memory:' 를 주면 인메모리 DB(테스트용)로 연다.
- * - schema.sql 의 5개 테이블만 생성한다(design.md Data Models).
+ * 어댑터 선택 규칙:
+ *  - DATABASE_URL 이 있고 postgres/postgresql 스킴이면 → Postgres 어댑터(pg).
+ *  - DATABASE_URL 이 'sqlite:' 스킴이거나 없으면 → SQLite 어댑터(node:sqlite).
+ *  - 테스트는 openDatabase(':memory:') 로 SQLite 인메모리를 직접 연다.
+ *
+ * 연결 문자열은 config(=process.env)에서만 읽는다. 소스에 하드코딩하지 않는다.
+ * 두 어댑터는 동일한 async 인터페이스(query/execScript/close)를 제공한다.
  */
 
-const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
 const path = require('node:path');
 const { config } = require('../config');
+const { createSqliteAdapter } = require('./adapters/sqliteAdapter');
+const { createPostgresAdapter } = require('./adapters/postgresAdapter');
 
-const SCHEMA_PATH = path.resolve(__dirname, 'schema.sql');
+const SQLITE_SCHEMA_PATH = path.resolve(__dirname, 'schema.sqlite.sql');
+const POSTGRES_SCHEMA_PATH = path.resolve(__dirname, 'schema.postgres.sql');
 
-function resolveDbLocation() {
-  const url = config.databaseUrl;
+function isPostgresUrl(url) {
+  return typeof url === 'string' && /^postgres(ql)?:\/\//i.test(url);
+}
+
+function resolveSqliteLocation(url) {
   if (!url) {
     return path.resolve(__dirname, '..', '..', 'data', 'activity-archive.sqlite');
   }
-  // sqlite 파일 경로 또는 특수값 그대로 사용
   if (url === ':memory:') return ':memory:';
-  // 'sqlite:' 스킴을 허용
   if (url.startsWith('sqlite:')) return url.slice('sqlite:'.length);
   return url;
 }
 
 function ensureParentDir(location) {
   if (location === ':memory:') return;
-  const dir = path.dirname(location);
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(path.dirname(location), { recursive: true });
 }
 
 /**
- * 새 DB 연결을 열고 스키마를 적용해 반환한다.
- * @param {string} [location] - 테스트에서 ':memory:' 등을 직접 주입할 수 있다.
+ * 새 DB 어댑터를 열고 스키마를 적용해 반환한다.
+ * @param {string} [override] - 테스트에서 ':memory:' 등 SQLite 위치를 직접 주입.
+ * @returns {Promise<object>} 공통 인터페이스 어댑터
  */
-function openDatabase(location) {
-  const target = location || resolveDbLocation();
-  ensureParentDir(target);
+async function openDatabase(override) {
+  // override 가 주어지면(테스트) 무조건 SQLite 경로로 연다.
+  const url = override !== undefined ? override : config.databaseUrl;
 
-  const db = new DatabaseSync(target);
-  db.exec('PRAGMA foreign_keys = ON;');
+  if (override === undefined && isPostgresUrl(url)) {
+    const adapter = createPostgresAdapter(url);
+    const schema = fs.readFileSync(POSTGRES_SCHEMA_PATH, 'utf8');
+    await adapter.execScript(schema);
+    return adapter;
+  }
 
-  const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
-  db.exec(schema);
-
-  return db;
+  const location = resolveSqliteLocation(url);
+  ensureParentDir(location);
+  const adapter = createSqliteAdapter(location);
+  const schema = fs.readFileSync(SQLITE_SCHEMA_PATH, 'utf8');
+  await adapter.execScript(schema);
+  return adapter;
 }
 
-// 애플리케이션 전역에서 재사용할 단일 연결(지연 초기화).
+// 애플리케이션 전역에서 재사용할 단일 어댑터(지연 초기화).
 let sharedDb = null;
 
-function getDatabase() {
+async function getDatabase() {
   if (!sharedDb) {
-    sharedDb = openDatabase();
+    sharedDb = await openDatabase();
   }
   return sharedDb;
 }
 
-function closeDatabase() {
+async function closeDatabase() {
   if (sharedDb) {
-    sharedDb.close();
+    await sharedDb.close();
     sharedDb = null;
   }
 }
 
-module.exports = { openDatabase, getDatabase, closeDatabase };
+module.exports = { openDatabase, getDatabase, closeDatabase, isPostgresUrl };

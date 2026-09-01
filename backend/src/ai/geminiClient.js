@@ -3,9 +3,10 @@
 /**
  * Google Gemini 클라이언트 (모델: gemini-2.0-flash).
  *
- * - API 키는 config(process.env.AI_API_KEY)에서만 읽는다. 소스에 하드코딩하지 않는다.
- * - generateContent REST 엔드포인트를 호출하고 응답 텍스트를 추출한다.
- * - fetch 구현을 주입할 수 있어 테스트에서 실제 네트워크 없이 모킹한다.
+ * 공식 SDK(@google/genai)를 사용하며, 표준 API 키 방식으로 인증한다.
+ * - API 키는 config(process.env.AI_API_KEY)에서만 읽어 SDK 생성자에 전달한다.
+ *   소스에 하드코딩하지 않는다. SDK 가 내부적으로 표준 방식으로 키를 전송한다.
+ * - SDK 클라이언트를 주입할 수 있어 테스트에서 실제 네트워크·패키지 없이 모킹한다.
  *
  * 이 클라이언트는 "호출과 텍스트 추출"만 담당한다. 상한·입력 길이 검사, 파싱, 검증은
  * 공통 파이프라인(pipeline.js)이 수행한다.
@@ -14,28 +15,37 @@
 const { config } = require('../config');
 
 const DEFAULT_MODEL = 'gemini-2.0-flash';
-const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 class AiError extends Error {
   constructor(code, message) {
     super(message || code);
     this.name = 'AiError';
-    this.code = code; // 'not_configured' | 'http_error' | 'empty_response' | 'network_error'
+    this.code = code; // 'not_configured' | 'call_failed' | 'empty_response'
   }
+}
+
+/**
+ * @google/genai SDK 클라이언트를 생성한다(지연 로드).
+ * apiKey 로 표준 API 키 인증을 사용한다.
+ */
+function defaultSdkFactory(apiKey) {
+  // 키가 설정된 경우에만 로드되도록 지연 require. 테스트는 sdkFactory 를 주입해 우회한다.
+  // eslint-disable-next-line global-require
+  const { GoogleGenAI } = require('@google/genai');
+  return new GoogleGenAI({ apiKey });
 }
 
 /**
  * @param {object} [options]
  * @param {() => (string|undefined)} [options.getApiKey] API 키 획득(기본: config)
  * @param {string} [options.model]
- * @param {string} [options.baseUrl]
- * @param {typeof fetch} [options.fetchImpl] 테스트 주입용 fetch
+ * @param {(apiKey: string) => object} [options.sdkFactory] 테스트 주입용 SDK 팩토리.
+ *   반환 객체는 models.generateContent({model, contents}) -> { text } 형태여야 한다.
  */
 function createGeminiClient(options = {}) {
   const getApiKey = options.getApiKey || (() => config.ai.apiKey);
   const model = options.model || DEFAULT_MODEL;
-  const baseUrl = options.baseUrl || config.ai.baseUrl || DEFAULT_BASE_URL;
-  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  const sdkFactory = options.sdkFactory || defaultSdkFactory;
 
   return {
     model,
@@ -49,7 +59,7 @@ function createGeminiClient(options = {}) {
      * 프롬프트를 보내고 생성된 텍스트를 반환한다.
      * @param {string} prompt
      * @returns {Promise<string>} 모델이 생성한 텍스트
-     * @throws {AiError} 키 미설정/HTTP 오류/빈 응답/네트워크 오류
+     * @throws {AiError} 키 미설정/호출 실패/빈 응답
      */
     async generate(prompt) {
       const apiKey = getApiKey();
@@ -57,32 +67,19 @@ function createGeminiClient(options = {}) {
         throw new AiError('not_configured', 'AI API key is not configured');
       }
 
-      const url = `${baseUrl}/models/${model}:generateContent`;
-      const requestBody = {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      };
-
       let response;
       try {
-        response = await fetchImpl(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // Gemini 는 API 키를 헤더로 받는다(쿼리스트링 노출 회피).
-            'x-goog-api-key': apiKey,
-          },
-          body: JSON.stringify(requestBody),
+        const ai = sdkFactory(apiKey);
+        response = await ai.models.generateContent({
+          model,
+          contents: prompt,
         });
       } catch (err) {
-        throw new AiError('network_error', err && err.message);
+        // 네트워크/HTTP/인증 오류 등: 재시도 없이 실패 처리.
+        throw new AiError('call_failed', err && err.message);
       }
 
-      if (!response.ok) {
-        throw new AiError('http_error', `gemini http ${response.status}`);
-      }
-
-      const data = await response.json().catch(() => null);
-      const text = extractText(data);
+      const text = extractText(response);
       if (typeof text !== 'string' || text.length === 0) {
         throw new AiError('empty_response', 'gemini returned no text');
       }
@@ -91,10 +88,20 @@ function createGeminiClient(options = {}) {
   };
 }
 
-/** Gemini generateContent 응답에서 첫 후보의 텍스트를 이어붙여 추출한다. */
-function extractText(data) {
-  const parts = data && data.candidates && data.candidates[0] &&
-    data.candidates[0].content && data.candidates[0].content.parts;
+/**
+ * SDK 응답에서 텍스트를 추출한다.
+ * @google/genai 응답은 response.text 접근자를 제공하며, 하위호환을 위해
+ * candidates[0].content.parts[].text 구조도 함께 처리한다.
+ */
+function extractText(response) {
+  if (!response) return null;
+  if (typeof response.text === 'string') return response.text;
+
+  const parts =
+    response.candidates &&
+    response.candidates[0] &&
+    response.candidates[0].content &&
+    response.candidates[0].content.parts;
   if (!Array.isArray(parts)) return null;
   return parts.map((p) => (p && typeof p.text === 'string' ? p.text : '')).join('');
 }

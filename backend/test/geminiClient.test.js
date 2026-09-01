@@ -3,81 +3,81 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 
-const { createGeminiClient, extractText, AiError } = require('../src/ai/geminiClient');
+const { createGeminiClient, extractText, AiError, DEFAULT_MODEL } = require('../src/ai/geminiClient');
 
-function jsonResponse(body, ok = true, status = 200) {
-  return {
-    ok,
-    status,
-    json: async () => body,
-  };
+// 주입용 SDK 목: generateContent 가 받은 인자를 캡처하고, 지정한 응답/오류를 낸다.
+function mockSdkFactory({ onCall, response, throwErr } = {}) {
+  return (apiKey) => ({
+    __apiKey: apiKey,
+    models: {
+      generateContent: async (args) => {
+        if (onCall) onCall(apiKey, args);
+        if (throwErr) throw throwErr;
+        return response;
+      },
+    },
+  });
 }
 
-test('extractText 는 candidates 의 parts 텍스트를 이어붙인다', () => {
-  const data = {
-    candidates: [{ content: { parts: [{ text: 'Hello ' }, { text: 'World' }] } }],
-  };
-  assert.strictEqual(extractText(data), 'Hello World');
+test('extractText 는 response.text 를 우선 사용한다', () => {
+  assert.strictEqual(extractText({ text: '바로 텍스트' }), '바로 텍스트');
+});
+
+test('extractText 는 candidates 구조도 처리한다(하위호환)', () => {
+  const data = { candidates: [{ content: { parts: [{ text: 'A' }, { text: 'B' }] } }] };
+  assert.strictEqual(extractText(data), 'AB');
   assert.strictEqual(extractText({}), null);
   assert.strictEqual(extractText(null), null);
 });
 
-test('키 미설정이면 not_configured 로 실패한다', async () => {
-  const client = createGeminiClient({ getApiKey: () => undefined, fetchImpl: async () => jsonResponse({}) });
-  assert.strictEqual(client.isConfigured(), false);
-  await assert.rejects(() => client.generate('p'), (err) => err instanceof AiError && err.code === 'not_configured');
+test('기본 모델은 gemini-2.0-flash 다', () => {
+  assert.strictEqual(DEFAULT_MODEL, 'gemini-2.0-flash');
 });
 
-test('generate 는 gemini-2.0-flash 엔드포인트에 키 헤더로 요청한다', async () => {
+test('키 미설정이면 not_configured 로 실패한다', async () => {
+  const client = createGeminiClient({
+    getApiKey: () => undefined,
+    sdkFactory: mockSdkFactory({ response: { text: 'x' } }),
+  });
+  assert.strictEqual(client.isConfigured(), false);
+  await assert.rejects(
+    () => client.generate('p'),
+    (err) => err instanceof AiError && err.code === 'not_configured'
+  );
+});
+
+test('generate 는 표준 API 키로 SDK 를 만들고 model·contents 를 전달한다', async () => {
   let captured = null;
   const client = createGeminiClient({
     getApiKey: () => 'test-key',
-    fetchImpl: async (url, opts) => {
-      captured = { url, opts };
-      return jsonResponse({
-        candidates: [{ content: { parts: [{ text: '생성된 텍스트' }] } }],
-      });
-    },
+    sdkFactory: mockSdkFactory({
+      onCall: (apiKey, args) => {
+        captured = { apiKey, args };
+      },
+      response: { text: '생성된 텍스트' },
+    }),
   });
 
   const text = await client.generate('프롬프트');
   assert.strictEqual(text, '생성된 텍스트');
-  // 엔드포인트 형태: https://.../v1beta/models/gemini-2.0-flash:generateContent
-  assert.strictEqual(
-    captured.url,
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
-  );
-  // 키는 x-goog-api-key 헤더로만 전달한다.
-  assert.strictEqual(captured.opts.headers['x-goog-api-key'], 'test-key');
-  // 키가 URL 쿼리스트링(?key=)이나 URL 어디에도 노출되지 않아야 한다.
-  assert.ok(!captured.url.includes('key='));
-  assert.ok(!captured.url.includes('test-key'));
-  const body = JSON.parse(captured.opts.body);
-  assert.strictEqual(body.contents[0].parts[0].text, '프롬프트');
+  // 표준 API 키가 SDK 생성자로 전달된다(헤더/URL 을 직접 다루지 않는다).
+  assert.strictEqual(captured.apiKey, 'test-key');
+  assert.strictEqual(captured.args.model, 'gemini-2.0-flash');
+  assert.strictEqual(captured.args.contents, '프롬프트');
 });
 
-test('HTTP 오류는 http_error 로 매핑된다', async () => {
+test('SDK 호출 오류는 call_failed 로 매핑된다', async () => {
   const client = createGeminiClient({
     getApiKey: () => 'k',
-    fetchImpl: async () => jsonResponse({}, false, 429),
+    sdkFactory: mockSdkFactory({ throwErr: new Error('boom') }),
   });
-  await assert.rejects(() => client.generate('p'), (err) => err.code === 'http_error');
+  await assert.rejects(() => client.generate('p'), (err) => err.code === 'call_failed');
 });
 
 test('빈 응답은 empty_response 로 실패한다', async () => {
   const client = createGeminiClient({
     getApiKey: () => 'k',
-    fetchImpl: async () => jsonResponse({ candidates: [] }),
+    sdkFactory: mockSdkFactory({ response: { text: '' } }),
   });
   await assert.rejects(() => client.generate('p'), (err) => err.code === 'empty_response');
-});
-
-test('네트워크 오류는 network_error 로 매핑된다', async () => {
-  const client = createGeminiClient({
-    getApiKey: () => 'k',
-    fetchImpl: async () => {
-      throw new Error('ECONNREFUSED');
-    },
-  });
-  await assert.rejects(() => client.generate('p'), (err) => err.code === 'network_error');
 });

@@ -1,11 +1,12 @@
 'use strict';
 
 /**
- * Google Gemini 클라이언트 (모델: gemini-2.5-flash).
+ * Google Gemini 클라이언트.
  *
  * 공식 SDK(@google/genai)를 사용하며, 표준 API 키 방식으로 인증한다.
  * - API 키는 config(process.env.AI_API_KEY)에서만 읽어 SDK 생성자에 전달한다.
  *   소스에 하드코딩하지 않는다. SDK 가 내부적으로 표준 방식으로 키를 전송한다.
+ * - 모델명은 config(process.env.AI_MODEL)에서 읽으며, 미설정 시 기본값(gemini-2.5-flash)을 쓴다.
  * - SDK 클라이언트를 주입할 수 있어 테스트에서 실제 네트워크·패키지 없이 모킹한다.
  *
  * 이 클라이언트는 "호출과 텍스트 추출"만 담당한다. 상한·입력 길이 검사, 파싱, 검증은
@@ -14,6 +15,7 @@
 
 const { config } = require('../config');
 
+// 기본 모델명. 환경변수 AI_MODEL 이 없을 때 config 가 이 값을 채운다.
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 class AiError extends Error {
@@ -44,7 +46,8 @@ function defaultSdkFactory(apiKey) {
  */
 function createGeminiClient(options = {}) {
   const getApiKey = options.getApiKey || (() => config.ai.apiKey);
-  const model = options.model || DEFAULT_MODEL;
+  // 우선순위: 명시 주입 > 환경변수(config.ai.model) > 하드코딩 기본값.
+  const model = options.model || config.ai.model || DEFAULT_MODEL;
   const sdkFactory = options.sdkFactory || defaultSdkFactory;
 
   return {

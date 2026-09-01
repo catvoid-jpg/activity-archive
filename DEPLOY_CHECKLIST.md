@@ -15,13 +15,14 @@ Render 무료 티어에 배포하기 위한 점검 목록이다. 실제 배포�
 | `DATABASE_URL` | 예 | `postgres://`/`postgresql://`면 Postgres, 없거나 `sqlite:`면 SQLite | `render.yaml`에서 DB 인스턴스로부터 `fromDatabase` 자동 주입 |
 | `AI_API_KEY` | 예(AI 기능) | Google Gemini API 키 | 대시보드에서 직접 입력(`sync: false`) |
 | `AI_API_BASE_URL` | 아니오 | Gemini 베이스 URL 재정의(기본값 있음) | 대시보드(`sync: false`) |
+| `AI_MODEL` | 아니오 | 사용할 Gemini 모델명. 미설정 시 `gemini-2.5-flash` | 대시보드(`sync: false`) |
 | `AI_MONTHLY_CALL_LIMIT` | 권장 | 전역 월간 AI 호출 상한(정수) | 대시보드(`sync: false`) |
 | `AI_INPUT_CHAR_LIMIT` | 권장 | 단일 요청 입력 길이 상한(문자 수) | 대시보드(`sync: false`) |
 | `PORT` | 아니오 | 서버 포트(미설정 시 3000). Render가 자동 주입 | Render 자동 |
 | `NODE_VERSION` | 예 | `22`(내장 `node:sqlite`/문법 요구) | `render.yaml`에 명시됨 |
 
 주의사항
-- **모델은 `gemini-2.5-flash`로 코드에 고정**되어 있다. 환경변수로 바꾸지 않는다.
+- **모델은 `AI_MODEL` 환경변수로 지정**하며, 미설정 시 기본값 `gemini-2.5-flash`를 사용한다.
 - 상한값(`AI_MONTHLY_CALL_LIMIT`, `AI_INPUT_CHAR_LIMIT`)은 설계상 임의 고정하지 않고 설정값으로 둔다. 비워 두면 상한이 적용되지 않으므로, 무료 티어 비용 통제를 원하면 **반드시 값을 넣는다**.
 - 로컬 `.env`/`.env.txt`의 이름이 코드 기준(`AI_API_KEY` 등)과 일치하는지 이미 정리됨. 대시보드 입력 시에도 같은 이름을 쓴다.
 

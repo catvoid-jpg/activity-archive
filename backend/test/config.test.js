@@ -20,17 +20,30 @@ test('설정값 미제공 시 기본 포트와 안전 요약을 반환한다', (
   delete process.env.PORT;
   delete process.env.AI_API_KEY;
   delete process.env.AI_MONTHLY_CALL_LIMIT;
+  delete process.env.AI_MODEL;
 
   const { config, describeConfig } = loadConfigFresh();
 
   assert.strictEqual(config.port, 3000);
   assert.strictEqual(config.ai.apiKey, undefined);
   assert.strictEqual(config.ai.monthlyCallLimit, undefined);
+  // AI_MODEL 미설정 시 기본값을 사용한다.
+  assert.strictEqual(config.ai.model, 'gemini-2.5-flash');
 
   const summary = describeConfig();
   // 안전 요약에는 실제 키 값이 아니라 설정 여부만 담겨야 한다.
   assert.strictEqual(summary.ai.apiKeyConfigured, false);
   assert.strictEqual('apiKey' in summary.ai, false);
+  // 모델명은 비밀이 아니므로 요약에 노출된다.
+  assert.strictEqual(summary.ai.model, 'gemini-2.5-flash');
+});
+
+test('AI_MODEL 환경변수가 있으면 그 값을 모델명으로 쓴다', () => {
+  process.env.AI_MODEL = 'gemini-2.0-flash';
+  const { config, describeConfig } = loadConfigFresh();
+  assert.strictEqual(config.ai.model, 'gemini-2.0-flash');
+  assert.strictEqual(describeConfig().ai.model, 'gemini-2.0-flash');
+  delete process.env.AI_MODEL;
 });
 
 test('환경변수에서 값을 읽고 정수 상한을 파싱한다', () => {

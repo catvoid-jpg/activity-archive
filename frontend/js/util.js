@@ -31,3 +31,60 @@ export function daysSinceLastRecord(createdAtList) {
   const diff = todayDay - latestDay;
   return diff < 0 ? 0 : diff;
 }
+
+/**
+ * 활동 상세(getActivity 응답의 activity)를 원본 텍스트 그대로 조립한다.
+ * 가공·요약·문장 생성 없이 사용자가 입력한 내용을 그대로 출력한다(Requirement 7.4).
+ * @param {object} activity - {name, period, affiliation, type, start:{situation,task,action[],result[],taken[]}, tags[]}
+ * @returns {string}
+ */
+export function buildActivityExportText(activity) {
+  const lines = [];
+  lines.push(`[활동] ${activity.name}`);
+  lines.push(`[기간] ${activity.period}`);
+  lines.push(`[소속] ${activity.affiliation}`);
+  lines.push(`[유형] ${activity.type}`);
+  lines.push('');
+
+  const s = activity.start || {};
+  lines.push(`[Situation] ${s.situation || ''}`);
+  lines.push(`[Task] ${s.task || ''}`);
+
+  const sections = [
+    ['Action', s.action],
+    ['Result', s.result],
+    ['Taken', s.taken],
+  ];
+  for (const [label, answers] of sections) {
+    for (const ans of answers || []) {
+      lines.push('');
+      lines.push(`[${label}] ${ans.questionText}`);
+      lines.push(ans.answerText || '');
+      if (ans.tags && ans.tags.length) lines.push(`태그: ${ans.tags.join(', ')}`);
+    }
+  }
+
+  if (activity.tags && activity.tags.length) {
+    lines.push('');
+    lines.push(`[태그] ${activity.tags.join(', ')}`);
+  }
+  return lines.join('\n');
+}
+
+/** 여러 활동 상세를 하나의 내보내기 텍스트로 이어붙인다(구분선 포함). */
+export function buildActivitiesExportText(activities) {
+  return (activities || []).map(buildActivityExportText).join('\n\n========\n\n');
+}
+
+/** 텍스트를 파일로 내려받는다(브라우저). */
+export function downloadTextFile(filename, text) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

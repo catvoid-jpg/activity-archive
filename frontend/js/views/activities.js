@@ -8,7 +8,12 @@
 // 모바일 우선 단일 컬럼. 화면 전환은 root.innerHTML 교체로 처리한다.
 
 import { api, LOWER_TAGS } from '../api.js';
-import { escapeHtml, daysSinceLastRecord } from '../util.js';
+import {
+  escapeHtml,
+  daysSinceLastRecord,
+  buildActivitiesExportText,
+  downloadTextFile,
+} from '../util.js';
 
 // 활동 유형: requirements.md Requirement 2.1 의 5종.
 const ACTIVITY_TYPES = ['인턴십', '대외활동', '프로젝트', '학업', '기타'];
@@ -91,6 +96,12 @@ async function showList() {
         ${onOpenRecommend ? '<button class="form__button form__button--ghost" data-action="recommend">소재 추천</button>' : ''}
         ${onOpenDiary ? '<button class="form__button form__button--ghost" data-action="diary">일기</button>' : ''}
       </div>
+      ${
+        // 저장된 활동이 하나 이상일 때만 내려받기 버튼을 표시한다(Requirement 7.4).
+        activities.length
+          ? '<button class="form__button form__button--ghost" data-action="export">활동 전체 내려받기</button><p class="muted" id="export-status" role="status" aria-live="polite"></p>'
+          : ''
+      }
       <ul class="list">${items}</ul>
     </section>
   `;
@@ -102,6 +113,30 @@ async function showList() {
   if (recBtn && onOpenRecommend) recBtn.addEventListener('click', onOpenRecommend);
   const diaryBtn = root.querySelector('[data-action="diary"]');
   if (diaryBtn && onOpenDiary) diaryBtn.addEventListener('click', onOpenDiary);
+
+  // 활동 전체 내려받기: 각 활동 상세를 조회해 원본 텍스트 그대로 파일로 저장한다(AI 미호출).
+  const exportBtn = root.querySelector('[data-action="export"]');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      const status = root.querySelector('#export-status');
+      exportBtn.disabled = true;
+      if (status) status.textContent = '내보내는 중…';
+      try {
+        const details = [];
+        for (const a of activities) {
+          // eslint-disable-next-line no-await-in-loop
+          const d = await api.getActivity(a.id);
+          details.push(d.activity);
+        }
+        downloadTextFile('activities.txt', buildActivitiesExportText(details));
+        if (status) status.textContent = '';
+      } catch (err) {
+        if (status) status.textContent = '내보내기에 실패했습니다.';
+      } finally {
+        exportBtn.disabled = false;
+      }
+    });
+  }
   root.querySelectorAll('[data-action="open"]').forEach((btn) => {
     btn.addEventListener('click', () => showDetail(Number(btn.dataset.id)));
   });

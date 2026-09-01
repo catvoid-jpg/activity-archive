@@ -17,11 +17,25 @@ const ACTIVITY_TYPES = ['인턴십', '대외활동', '프로젝트', '학업', '
 const THIRD_PARTY_NOTICE = '기록에는 다른 사람의 실명을 쓰지 말아 주세요.';
 
 let root = null;
+let onOpenQuickNotes = null; // 빠른 기록 화면으로 이동하는 콜백(옵션)
 
-/** 활동 화면의 진입점. 목록 화면을 렌더한다. */
-export function renderActivities(mountEl) {
+/**
+ * 활동 화면의 진입점. 목록 화면을 렌더한다.
+ * @param {HTMLElement} mountEl
+ * @param {object} [nav]
+ * @param {() => void} [nav.onOpenQuickNotes] 빠른 기록 화면 열기
+ */
+export function renderActivities(mountEl, nav = {}) {
   root = mountEl;
+  onOpenQuickNotes = typeof nav.onOpenQuickNotes === 'function' ? nav.onOpenQuickNotes : null;
   showList();
+}
+
+/** 특정 활동 상세를 바로 연다(빠른 기록 전환 후 심화 질문 흐름 진입에 사용). */
+export function renderActivityDetail(mountEl, id, nav = {}) {
+  root = mountEl;
+  onOpenQuickNotes = typeof nav.onOpenQuickNotes === 'function' ? nav.onOpenQuickNotes : null;
+  showDetail(id);
 }
 
 // --- 목록 화면 ---
@@ -61,12 +75,17 @@ async function showList() {
     <section class="card">
       <h1>활동 기록</h1>
       <p class="muted" id="elapsed">${escapeHtml(elapsedText)}</p>
-      <button class="form__button" data-action="new">활동 등록</button>
+      <div class="form__row">
+        <button class="form__button" data-action="new">활동 등록</button>
+        ${onOpenQuickNotes ? '<button class="form__button form__button--ghost" data-action="quicknotes">빠른 기록</button>' : ''}
+      </div>
       <ul class="list">${items}</ul>
     </section>
   `;
 
   root.querySelector('[data-action="new"]').addEventListener('click', showForm);
+  const qnBtn = root.querySelector('[data-action="quicknotes"]');
+  if (qnBtn && onOpenQuickNotes) qnBtn.addEventListener('click', onOpenQuickNotes);
   root.querySelectorAll('[data-action="open"]').forEach((btn) => {
     btn.addEventListener('click', () => showDetail(Number(btn.dataset.id)));
   });

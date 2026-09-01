@@ -216,3 +216,26 @@ textarea.form__input {
   margin: 6px 0;
   font-size: 0.9rem;
 }
+
+/* 빠른 기록 */
+.qnote {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 4px;
+}
+
+.qnote__text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.link-button {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #2f6fed;
+  font-size: 0.85rem;
+  cursor: pointer;
+}

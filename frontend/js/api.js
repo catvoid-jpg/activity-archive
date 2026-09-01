@@ -129,6 +129,26 @@ export function deleteActivity(id) {
   return apiRequest(`/api/activities/${id}`, { method: 'DELETE' });
 }
 
+// --- 빠른 기록 API (Requirement 3) ---
+
+/** 한 줄 기록을 저장한다(AI 미호출). */
+export function createQuickNote(text) {
+  return apiRequest('/api/quick-notes', { method: 'POST', body: { text } });
+}
+
+/** 빠른 기록을 날짜순으로 조회한다. */
+export function listQuickNotes() {
+  return apiRequest('/api/quick-notes');
+}
+
+/** 빠른 기록을 활동으로 전환한다(활동 메타 + Situation/Task 필요). */
+export function convertQuickNote(id, activityInput) {
+  return apiRequest(`/api/quick-notes/${id}/convert`, {
+    method: 'POST',
+    body: activityInput,
+  });
+}
+
 export const api = {
   request: apiRequest,
   getInviteCode,
@@ -139,5 +159,8 @@ export const api = {
   getActivity,
   createActivity,
   deleteActivity,
+  createQuickNote,
+  listQuickNotes,
+  convertQuickNote,
   health: () => apiRequest('/api/health', { skipInviteCode: true }),
 };

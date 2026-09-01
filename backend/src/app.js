@@ -18,8 +18,10 @@ const { createInviteCodeRepository } = require('./db/inviteCodeRepository');
 const { createActivityRepository } = require('./db/activityRepository');
 const { createRequireInviteCode } = require('./middleware/ownership');
 const { createOnboardingService } = require('./onboardingService');
+const { createQuickNoteRepository } = require('./db/quickNoteRepository');
 const { createSessionRouter } = require('./routes/session');
 const { createActivitiesRouter } = require('./routes/activities');
+const { createQuickNotesRouter } = require('./routes/quickNotes');
 
 // 프론트엔드 정적 파일 위치(리포 구조: backend/, frontend/ 형제 디렉터리).
 const FRONTEND_DIR = path.resolve(__dirname, '..', '..', 'frontend');
@@ -33,6 +35,7 @@ async function createApp(options = {}) {
   const db = options.db || (await getDatabase());
   const inviteCodeRepo = createInviteCodeRepository(db);
   const activityRepo = createActivityRepository(db);
+  const quickNoteRepo = createQuickNoteRepository(db);
   const requireInviteCode = createRequireInviteCode(inviteCodeRepo);
   const onboardingService = createOnboardingService({ db, activityRepo, inviteCodeRepo });
 
@@ -59,6 +62,9 @@ async function createApp(options = {}) {
 
   // 활동 기록 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
   app.use(createActivitiesRouter({ activityRepo, requireInviteCode }));
+
+  // 빠른 기록 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
+  app.use(createQuickNotesRouter({ quickNoteRepo, activityRepo, requireInviteCode }));
 
   // 알 수 없는 API 경로 처리(정적 서빙 이전에 API 404 를 확정).
   app.use('/api', (req, res) => {

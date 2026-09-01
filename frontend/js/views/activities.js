@@ -332,6 +332,8 @@ async function showDetail(id) {
   });
 
   // 심화 질문 생성 버튼
+  // AI 호출 실패 시(Requirement 11.1): 안내 메시지만 표시하고 화면을 다시 그리지 않아
+  // 이전 화면 상태를 그대로 유지한다. showDetail 재호출은 성공 경로에서만 일어난다.
   const genBtn = root.querySelector('[data-action="generate"]');
   if (genBtn) {
     genBtn.addEventListener('click', async () => {
@@ -340,8 +342,9 @@ async function showDetail(id) {
       if (genMessage) genMessage.textContent = '질문을 준비하는 중…';
       try {
         await api.generateQuestions(id);
-        showDetail(id); // 질문이 저장되었으니 상세를 다시 그린다.
+        showDetail(id); // 성공 시에만 다시 그린다.
       } catch (err) {
+        // 실패: 화면 상태 유지(재렌더 없음) + 안내.
         if (genMessage) genMessage.textContent = '질문 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.';
         genBtn.disabled = false;
       }
@@ -349,6 +352,8 @@ async function showDetail(id) {
   }
 
   // 답변 저장(건너뛰기: 비워 두고 저장하지 않아도 됨). PATCH 로 텍스트만 갱신.
+  // 네트워크 오류 시(Requirement 11.2): 화면을 다시 그리지 않으므로 textarea 에 작성 중이던
+  // 답변이 그대로 남아 소실되지 않는다. 사용자는 그대로 다시 저장을 시도할 수 있다.
   root.querySelectorAll('[data-action="save-answer"]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const answerId = Number(btn.dataset.answerId);
@@ -359,7 +364,13 @@ async function showDetail(id) {
         await api.updateAnswer(id, answerId, textarea.value);
         if (status) status.textContent = '저장되었습니다.';
       } catch (err) {
-        if (status) status.textContent = '저장에 실패했습니다.';
+        // 실패해도 재렌더하지 않아 입력 내용이 보존된다.
+        if (status) {
+          status.textContent =
+            err.kind === 'network'
+              ? '네트워크 오류로 저장하지 못했습니다. 작성 내용은 유지되니 다시 시도해 주세요.'
+              : '저장에 실패했습니다. 작성 내용은 유지됩니다.';
+        }
       } finally {
         btn.disabled = false;
       }

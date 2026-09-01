@@ -205,3 +205,14 @@ textarea.form__input {
   font-size: 0.8rem;
   color: #2f6fed;
 }
+
+/* 온보딩 안내 목록 */
+.notice-list {
+  margin: 8px 0 12px;
+  padding-left: 18px;
+}
+
+.notice-list__item {
+  margin: 6px 0;
+  font-size: 0.9rem;
+}

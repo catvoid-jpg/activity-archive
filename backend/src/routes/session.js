@@ -13,7 +13,7 @@
 
 const express = require('express');
 
-function createSessionRouter(inviteCodeRepo) {
+function createSessionRouter({ inviteCodeRepo, onboardingService }) {
   const router = express.Router();
 
   router.post('/api/session', async (req, res, next) => {
@@ -36,10 +36,14 @@ function createSessionRouter(inviteCodeRepo) {
         });
       }
 
-      // 유효한 코드: 식별자로 인정하고 최초 진입 여부 반환 (Requirement 1.1, 9)
+      // 유효한 코드: 식별자로 인정한다(Requirement 1.1).
+      // 최초 진입이면 시드 활동을 제공하고 온보딩 완료를 원자적으로 기록한다(Requirement 9.1).
+      // provision 결과(이번 진입이 최초였는지)를 그대로 needsOnboarding 으로 돌려주어,
+      // 클라이언트가 안내 화면을 정확히 1회만 표시하게 한다.
+      const isFirstEntry = await onboardingService.provisionIfFirstEntry(trimmed);
       return res.json({
         inviteCode: trimmed,
-        needsOnboarding: await inviteCodeRepo.needsOnboarding(trimmed),
+        needsOnboarding: isFirstEntry,
       });
     } catch (err) {
       return next(err);

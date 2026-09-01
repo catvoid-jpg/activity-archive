@@ -52,8 +52,12 @@ function loadDotEnv(envPath) {
 // .env 는 backend 디렉터리 루트 기준으로 찾는다.
 // .env 를 우선 로드하고, 없으면 .env.txt 도 시도한다(로컬 편의).
 // loadDotEnv 는 이미 존재하는 값을 덮어쓰지 않으므로 .env 값이 우선한다.
-loadDotEnv(path.resolve(__dirname, '..', '.env'));
-loadDotEnv(path.resolve(__dirname, '..', '.env.txt'));
+// ACTIVITY_ARCHIVE_SKIP_DOTENV=1 이면 파일 로딩을 건너뛴다(테스트가 실제 .env 에
+// 영향받지 않도록 하는 용도). 실제 환경변수 주입만 사용한다.
+if (process.env.ACTIVITY_ARCHIVE_SKIP_DOTENV !== '1') {
+  loadDotEnv(path.resolve(__dirname, '..', '.env'));
+  loadDotEnv(path.resolve(__dirname, '..', '.env.txt'));
+}
 
 function readString(key) {
   const value = process.env[key];

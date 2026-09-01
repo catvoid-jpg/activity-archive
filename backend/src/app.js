@@ -17,6 +17,7 @@ const { getDatabase } = require('./db');
 const { createInviteCodeRepository } = require('./db/inviteCodeRepository');
 const { createActivityRepository } = require('./db/activityRepository');
 const { createRequireInviteCode } = require('./middleware/ownership');
+const { createOnboardingService } = require('./onboardingService');
 const { createSessionRouter } = require('./routes/session');
 const { createActivitiesRouter } = require('./routes/activities');
 
@@ -33,6 +34,7 @@ async function createApp(options = {}) {
   const inviteCodeRepo = createInviteCodeRepository(db);
   const activityRepo = createActivityRepository(db);
   const requireInviteCode = createRequireInviteCode(inviteCodeRepo);
+  const onboardingService = createOnboardingService({ db, activityRepo, inviteCodeRepo });
 
   const app = express();
   app.locals.db = db;
@@ -53,7 +55,7 @@ async function createApp(options = {}) {
   });
 
   // 초대 코드 진입(세션) 라우트. 소유권 미들웨어를 거치지 않는다.
-  app.use(createSessionRouter(inviteCodeRepo));
+  app.use(createSessionRouter({ inviteCodeRepo, onboardingService }));
 
   // 활동 기록 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
   app.use(createActivitiesRouter({ activityRepo, requireInviteCode }));

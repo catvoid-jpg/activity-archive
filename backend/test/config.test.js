@@ -4,6 +4,10 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
 
+// 이 테스트는 순수한 환경변수 파싱을 검증하므로, 실제 .env/.env.txt 파일 로딩을 끈다.
+// (그렇지 않으면 로컬 .env 값이 테스트에 새어 들어온다.)
+process.env.ACTIVITY_ARCHIVE_SKIP_DOTENV = '1';
+
 // config 모듈은 로드 시 process.env 를 읽으므로, 각 테스트에서 캐시를 비우고
 // 필요한 환경변수를 세팅한 뒤 require 한다.
 function loadConfigFresh() {

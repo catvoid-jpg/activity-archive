@@ -430,7 +430,7 @@ async function showDetail(id) {
         showDetail(id);
       } catch (err) {
         const status = root.querySelector('#tag-status');
-        if (status) status.textContent = '태그 추가에 실패했습니다(활동당 최대 5개).';
+        if (status) status.textContent = '태그 추가에 실패했습니다(답변당 최대 2개, 활동 전체 최대 6개).';
       }
     });
   });

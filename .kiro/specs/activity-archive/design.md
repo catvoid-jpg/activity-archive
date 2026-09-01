@@ -94,7 +94,7 @@ _Requirement 3._
 내부 공통 파이프라인: `상한 검사 → 입력 길이 검사 → LLM 호출 → 파싱 → 검증`. 세 지점만 이 모듈을 사용한다.
 
 - `POST /api/activities/{id}/questions` — 심화 질문 생성. Situation·Task 기반, Action·Result·Taken 관점, 활동당 최대 4개. 생성 실패 시 사전 정의 기본 질문 목록 반환.
-- `POST /api/activities/{id}/tags` — 태그 부여. 답변 텍스트 + 태그 상수 목록 + START 표기를 프롬프트에 포함. Action 답변은 [A], Result 답변은 [R], Taken 답변은 [T] 태그를 우선 판별. 활동당 하위 태그 최대 5개. 목록 밖 값 폐기. 실패해도 답변 저장은 정상 완료되며 사용자가 수동으로 태그를 추가할 수 있다.
+- `POST /api/activities/{id}/tags` — 태그 부여. 답변 텍스트 + 태그 상수 목록 + START 표기를 프롬프트에 포함. Action 답변은 [A], Result 답변은 [R], Taken 답변은 [T] 태그를 우선 판별. 하위 태그는 답변 하나당 최대 2개, 활동 전체 최대 6개. 목록 밖 값 폐기. 실패해도 답변 저장은 정상 완료되며 사용자가 수동으로 태그를 추가할 수 있다.
 - `POST /api/recommendations` — 지원서 문항 분석. 문항이 요구하는 상위·하위 태그를 판별(소재 추천 모듈이 소비).
 
 _Requirement 4, 5, 8, 12, 15._
@@ -166,7 +166,7 @@ _Requirement 16._
 | start_element | 답변이 대응하는 START 요소: A / R / T |
 | question_text | 심화 질문 텍스트(생성 또는 기본 질문) |
 | answer_text | 사용자 답변(수정 가능, 수정 시 AI 재호출 없음) |
-| assigned_tags | 부여·수동 편집된 하위 태그 목록(태그 상수 값만 허용, 활동당 최대 5개). 각 태그의 상위 태그는 상수에서 결정 |
+| assigned_tags | 부여·수동 편집된 하위 태그 목록(태그 상수 값만 허용, 답변 하나당 최대 2개·활동 전체 최대 6개). 각 태그의 상위 태그는 상수에서 결정 |
 | created_at | 생성 시각(경과일 계산 기준) |
 
 ### 4. `diary_meta`

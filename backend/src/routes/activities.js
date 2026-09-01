@@ -25,8 +25,9 @@ const {
 const { buildTaggingPrompt, parseTags, validateTags } = require('../ai/tagging');
 const { filterValidLowerTags } = require('../tags');
 
-// 활동당 하위 태그 최대 개수(Requirement 5.1 / 12: 활동당 최대 5개).
-const MAX_TAGS_PER_ACTIVITY = 5;
+// 하위 태그 상한: 답변 하나당 최대 2개, 활동 전체 최대 6개.
+const MAX_TAGS_PER_ANSWER = 2;
+const MAX_TAGS_PER_ACTIVITY = 6;
 
 // 활동 유형: requirements.md Requirement 2.1 에 열거된 값으로 한정한다.
 const ACTIVITY_TYPES = Object.freeze(['인턴십', '대외활동', '프로젝트', '학업', '기타']);
@@ -284,7 +285,7 @@ function createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline })
   // 태그 자동 부여 (Requirement 5.1, 5.3, 12.3, 12.4) — 8.1 공통 파이프라인 사용.
   // - 답변별로 [답변 텍스트 + 태그 상수 목록 + START 표기] 프롬프트를 만들어 하위 태그를 판별한다.
   // - 답변의 START 요소([A]/[R]/[T])에 맞는 태그를 우선 판별한다.
-  // - 활동 전체 기준 하위 태그 최대 5개까지만 부여한다(초과분은 버린다).
+  // - 상한: 답변 하나당 최대 2개, 활동 전체 최대 6개(초과분은 버린다).
   // - 목록 밖 값은 폐기한다. 자동 부여에 실패해도 답변 저장은 그대로 유지된다(재시도 없음).
   router.post('/api/activities/:id/tags', async (req, res, next) => {
     try {
@@ -295,7 +296,7 @@ function createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline })
       // 답변 텍스트가 있는 항목만 태그 판별 대상.
       const answered = answers.filter((a) => typeof a.answer_text === 'string' && a.answer_text.trim().length > 0);
 
-      let remaining = MAX_TAGS_PER_ACTIVITY;
+      let remaining = MAX_TAGS_PER_ACTIVITY; // 활동 전체 잔여 상한
       const usedGlobally = new Set(); // 활동 내 태그 중복 방지
       let anyAssigned = false;
 
@@ -311,12 +312,13 @@ function createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline })
         });
         if (!result.ok) continue; // 실패는 격리: 이 답변만 건너뛰고 답변 저장은 유지.
 
-        // 활동 전체 상한과 중복을 반영해 이 답변에 부여할 태그를 확정.
+        // 상한(답변당 2개, 활동 전체 6개)과 중복을 반영해 이 답변에 부여할 태그를 확정.
         // 저장 경계에서 한 번 더 목록 밖 값을 폐기한다(Requirement 12.4, 방어적 검증).
         const validated = filterValidLowerTags(result.value);
         const forThisAnswer = [];
         for (const tag of validated) {
-          if (remaining <= 0) break;
+          if (remaining <= 0) break; // 활동 전체 상한
+          if (forThisAnswer.length >= MAX_TAGS_PER_ANSWER) break; // 답변당 상한
           if (usedGlobally.has(tag)) continue;
           usedGlobally.add(tag);
           forThisAnswer.push(tag);
@@ -341,7 +343,8 @@ function createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline })
   });
 
   // 수동 태그 편집 (Requirement 5.2) — 사용자가 태그를 삭제·추가한다. AI 미호출.
-  // - 상수 목록 밖 값은 폐기하고, 활동 전체 5개 상한을 초과하면 400.
+  // - 상수 목록 밖 값은 폐기한다.
+  // - 상한: 답변 하나당 최대 2개, 활동 전체 최대 6개. 초과 시 400.
   router.patch('/api/activities/:id/answers/:answerId/tags', async (req, res, next) => {
     try {
       const activity = await activityRepo.getById(Number(req.params.id));
@@ -360,7 +363,12 @@ function createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline })
       // 목록 밖 값 폐기 + 중복 제거.
       const requested = filterValidLowerTags(body.tags);
 
-      // 활동 전체 상한 검사: 다른 답변에 부여된 태그 수 + 이번 요청 수.
+      // 답변당 상한 검사(최대 2개).
+      if (requested.length > MAX_TAGS_PER_ANSWER) {
+        return res.status(400).json({ error: 'tag_limit_exceeded', scope: 'answer', max: MAX_TAGS_PER_ANSWER });
+      }
+
+      // 활동 전체 상한 검사(최대 6개): 다른 답변에 부여된 태그 수 + 이번 요청 수.
       const answers = await activityRepo.listAnswers(activity.id);
       let otherCount = 0;
       for (const a of answers) {
@@ -368,7 +376,7 @@ function createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline })
         otherCount += parseAssignedTags(a.assigned_tags).length;
       }
       if (otherCount + requested.length > MAX_TAGS_PER_ACTIVITY) {
-        return res.status(400).json({ error: 'tag_limit_exceeded', max: MAX_TAGS_PER_ACTIVITY });
+        return res.status(400).json({ error: 'tag_limit_exceeded', scope: 'activity', max: MAX_TAGS_PER_ACTIVITY });
       }
 
       const updated = await activityRepo.setAnswerTags(answer.id, requested);

@@ -69,7 +69,7 @@
 
 #### Acceptance Criteria
 
-1. WHEN 사용자 답변이 저장되면, THE System SHALL 사전 정의된 태그 목록과 START 대응 표기([A]/[R]/[T])를 AI_Service에 전달하여, Action 답변에서는 [A] 하위 태그를, Result 답변에서는 [R] 하위 태그를, Taken 답변에서는 [T] 하위 태그를 우선 판별해 상위 태그와 하위 태그를 부여하고, 각 하위 태그를 하나의 상위 태그에 종속시키며, 활동 하나당 하위 태그를 최대 5개까지 부여한다.
+1. WHEN 사용자 답변이 저장되면, THE System SHALL 사전 정의된 태그 목록과 START 대응 표기([A]/[R]/[T])를 AI_Service에 전달하여, Action 답변에서는 [A] 하위 태그를, Result 답변에서는 [R] 하위 태그를, Taken 답변에서는 [T] 하위 태그를 우선 판별해 상위 태그와 하위 태그를 부여하고, 각 하위 태그를 하나의 상위 태그에 종속시키며, 답변 하나당 최대 2개, 활동 전체 최대 6개까지 하위 태그를 부여한다.
 2. THE System SHALL 사용자가 부여된 태그를 삭제하거나 추가할 수 있게 한다.
 3. IF 자동 태그 부여에 실패하면, THEN THE System SHALL AI_Service를 재시도하지 않고 답변 저장을 정상적으로 완료하며, 사용자가 Requirement 5의 태그 추가 기능으로 직접 태그를 추가할 수 있게 한다.
 

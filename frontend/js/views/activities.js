@@ -19,6 +19,13 @@ const THIRD_PARTY_NOTICE = '기록에는 다른 사람의 실명을 쓰지 말�
 let root = null;
 let onOpenQuickNotes = null; // 빠른 기록 화면으로 이동하는 콜백(옵션)
 let onOpenRecommend = null; // 소재 추천 화면으로 이동하는 콜백(옵션)
+let onOpenDiary = null; // 일기 화면으로 이동하는 콜백(옵션)
+
+function applyNav(nav) {
+  onOpenQuickNotes = typeof nav.onOpenQuickNotes === 'function' ? nav.onOpenQuickNotes : null;
+  onOpenRecommend = typeof nav.onOpenRecommend === 'function' ? nav.onOpenRecommend : null;
+  onOpenDiary = typeof nav.onOpenDiary === 'function' ? nav.onOpenDiary : null;
+}
 
 /**
  * 활동 화면의 진입점. 목록 화면을 렌더한다.
@@ -26,19 +33,18 @@ let onOpenRecommend = null; // 소재 추천 화면으로 이동하는 콜백(�
  * @param {object} [nav]
  * @param {() => void} [nav.onOpenQuickNotes] 빠른 기록 화면 열기
  * @param {() => void} [nav.onOpenRecommend] 소재 추천 화면 열기
+ * @param {() => void} [nav.onOpenDiary] 일기 화면 열기
  */
 export function renderActivities(mountEl, nav = {}) {
   root = mountEl;
-  onOpenQuickNotes = typeof nav.onOpenQuickNotes === 'function' ? nav.onOpenQuickNotes : null;
-  onOpenRecommend = typeof nav.onOpenRecommend === 'function' ? nav.onOpenRecommend : null;
+  applyNav(nav);
   showList();
 }
 
 /** 특정 활동 상세를 바로 연다(빠른 기록 전환 후 심화 질문 흐름 진입에 사용). */
 export function renderActivityDetail(mountEl, id, nav = {}) {
   root = mountEl;
-  onOpenQuickNotes = typeof nav.onOpenQuickNotes === 'function' ? nav.onOpenQuickNotes : null;
-  onOpenRecommend = typeof nav.onOpenRecommend === 'function' ? nav.onOpenRecommend : null;
+  applyNav(nav);
   showDetail(id);
 }
 
@@ -83,6 +89,7 @@ async function showList() {
         <button class="form__button" data-action="new">활동 등록</button>
         ${onOpenQuickNotes ? '<button class="form__button form__button--ghost" data-action="quicknotes">빠른 기록</button>' : ''}
         ${onOpenRecommend ? '<button class="form__button form__button--ghost" data-action="recommend">소재 추천</button>' : ''}
+        ${onOpenDiary ? '<button class="form__button form__button--ghost" data-action="diary">일기</button>' : ''}
       </div>
       <ul class="list">${items}</ul>
     </section>
@@ -93,6 +100,8 @@ async function showList() {
   if (qnBtn && onOpenQuickNotes) qnBtn.addEventListener('click', onOpenQuickNotes);
   const recBtn = root.querySelector('[data-action="recommend"]');
   if (recBtn && onOpenRecommend) recBtn.addEventListener('click', onOpenRecommend);
+  const diaryBtn = root.querySelector('[data-action="diary"]');
+  if (diaryBtn && onOpenDiary) diaryBtn.addEventListener('click', onOpenDiary);
   root.querySelectorAll('[data-action="open"]').forEach((btn) => {
     btn.addEventListener('click', () => showDetail(Number(btn.dataset.id)));
   });

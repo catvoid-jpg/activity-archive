@@ -298,3 +298,16 @@ textarea.form__input {
   font-size: 0.8rem;
   overflow-x: auto;
 }
+
+/* 일기 태그 선택 */
+.tag-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.tag-check {
+  font-size: 0.85rem;
+  color: #333;
+  white-space: nowrap;
+}

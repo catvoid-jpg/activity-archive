@@ -160,6 +160,18 @@ export function recommend(questionText) {
   return apiRequest('/api/recommendations', { method: 'POST', body: { questionText } });
 }
 
+// --- 일기 메타 API (Requirement 6.2). 본문은 서버로 보내지 않는다. ---
+
+/** 일기의 날짜 + 선택 태그만 서버에 저장한다(본문 없음). */
+export function saveDiaryMeta(entryDate, selectedTags) {
+  return apiRequest('/api/diary-meta', { method: 'POST', body: { entryDate, selectedTags } });
+}
+
+/** 일기 메타를 날짜순으로 조회한다(본문 없음). */
+export function listDiaryMeta() {
+  return apiRequest('/api/diary-meta');
+}
+
 /** 태그 상수 목록(하위 태그)을 제공한다. 서버 상수와 동일해야 한다. */
 export const LOWER_TAGS = [
   '문서작성', '발표전달', '다국어소통', '합의도출',
@@ -212,5 +224,7 @@ export const api = {
   listQuickNotes,
   convertQuickNote,
   recommend,
+  saveDiaryMeta,
+  listDiaryMeta,
   health: () => apiRequest('/api/health', { skipInviteCode: true }),
 };

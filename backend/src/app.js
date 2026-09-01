@@ -24,6 +24,8 @@ const { createActivitiesRouter } = require('./routes/activities');
 const { createQuickNotesRouter } = require('./routes/quickNotes');
 const { createRecommendationRepository } = require('./db/recommendationRepository');
 const { createRecommendationsRouter } = require('./routes/recommendations');
+const { createDiaryMetaRepository } = require('./db/diaryMetaRepository');
+const { createDiaryMetaRouter } = require('./routes/diaryMeta');
 const { createGeminiClient } = require('./ai/geminiClient');
 const { createAiPipeline } = require('./ai/pipeline');
 
@@ -41,6 +43,7 @@ async function createApp(options = {}) {
   const activityRepo = createActivityRepository(db);
   const quickNoteRepo = createQuickNoteRepository(db);
   const recommendationRepo = createRecommendationRepository(db);
+  const diaryMetaRepo = createDiaryMetaRepository(db);
   const requireInviteCode = createRequireInviteCode(inviteCodeRepo);
   const onboardingService = createOnboardingService({ db, activityRepo, inviteCodeRepo });
 
@@ -76,6 +79,9 @@ async function createApp(options = {}) {
 
   // 소재 추천 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
   app.use(createRecommendationsRouter({ recommendationRepo, requireInviteCode, aiPipeline }));
+
+  // 일기 메타 라우트(날짜+태그만, 본문 없음). 라우터 내부에서 소유권 미들웨어를 통과한다.
+  app.use(createDiaryMetaRouter({ diaryMetaRepo, requireInviteCode }));
 
   // 알 수 없는 API 경로 처리(정적 서빙 이전에 API 404 를 확정).
   app.use('/api', (req, res) => {

@@ -10,20 +10,27 @@ import { renderOnboarding } from './views/onboarding.js';
 import { renderActivities, renderActivityDetail } from './views/activities.js';
 import { renderQuickNotes } from './views/quickNotes.js';
 import { renderRecommend } from './views/recommend.js';
+import { renderDiary } from './views/diary.js';
 
 const root = document.getElementById('app');
 
-// 활동 기록 화면(목록). 빠른 기록·소재 추천 진입점을 함께 제공한다.
+// 활동 기록 화면(목록). 빠른 기록·소재 추천·일기 진입점을 함께 제공한다.
 function renderHome() {
   renderActivities(root, {
     onOpenQuickNotes: renderQuickNotesScreen,
     onOpenRecommend: renderRecommendScreen,
+    onOpenDiary: renderDiaryScreen,
   });
 }
 
 // 소재 추천 화면.
 function renderRecommendScreen() {
   renderRecommend(root, { onBack: renderHome });
+}
+
+// 일기 화면.
+function renderDiaryScreen() {
+  renderDiary(root, { onBack: renderHome });
 }
 
 // 빠른 기록 화면. 뒤로가기(활동)와 전환 후 활동 상세 열기를 연결한다.

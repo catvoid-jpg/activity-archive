@@ -30,8 +30,8 @@ test('extractText 는 candidates 구조도 처리한다(하위호환)', () => {
   assert.strictEqual(extractText(null), null);
 });
 
-test('기본 모델은 gemini-2.0-flash 다', () => {
-  assert.strictEqual(DEFAULT_MODEL, 'gemini-2.0-flash');
+test('기본 모델은 gemini-2.5-flash 다', () => {
+  assert.strictEqual(DEFAULT_MODEL, 'gemini-2.5-flash');
 });
 
 test('키 미설정이면 not_configured 로 실패한다', async () => {
@@ -62,7 +62,7 @@ test('generate 는 표준 API 키로 SDK 를 만들고 model·contents 를 전�
   assert.strictEqual(text, '생성된 텍스트');
   // 표준 API 키가 SDK 생성자로 전달된다(헤더/URL 을 직접 다루지 않는다).
   assert.strictEqual(captured.apiKey, 'test-key');
-  assert.strictEqual(captured.args.model, 'gemini-2.0-flash');
+  assert.strictEqual(captured.args.model, 'gemini-2.5-flash');
   assert.strictEqual(captured.args.contents, '프롬프트');
 });
 

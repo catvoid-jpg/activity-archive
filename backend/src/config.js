@@ -77,6 +77,8 @@ const config = {
   ai: {
     apiKey: readString('AI_API_KEY'),
     baseUrl: readString('AI_API_BASE_URL'),
+    // 모델명은 환경변수 AI_MODEL 로 재정의 가능. 미설정 시 기본값을 사용한다.
+    model: readString('AI_MODEL') || 'gemini-2.5-flash',
     // 상한값은 미설정이면 undefined 로 두어, 소비 측에서 명시적으로 처리한다.
     monthlyCallLimit: readInt('AI_MONTHLY_CALL_LIMIT'),
     inputCharLimit: readInt('AI_INPUT_CHAR_LIMIT'),
@@ -95,6 +97,8 @@ function describeConfig() {
     ai: {
       apiKeyConfigured: Boolean(config.ai.apiKey),
       baseUrlConfigured: Boolean(config.ai.baseUrl),
+      // 모델명은 비밀이 아니므로 실제 값을 노출해 운영 시 확인할 수 있게 한다.
+      model: config.ai.model,
       monthlyCallLimit: config.ai.monthlyCallLimit ?? null,
       inputCharLimit: config.ai.inputCharLimit ?? null,
     },

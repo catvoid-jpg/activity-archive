@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Google Gemini 클라이언트 (모델: gemini-2.0-flash).
+ * Google Gemini 클라이언트 (모델: gemini-2.5-flash).
  *
  * 공식 SDK(@google/genai)를 사용하며, 표준 API 키 방식으로 인증한다.
  * - API 키는 config(process.env.AI_API_KEY)에서만 읽어 SDK 생성자에 전달한다.
@@ -14,7 +14,7 @@
 
 const { config } = require('../config');
 
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 class AiError extends Error {
   constructor(code, message) {

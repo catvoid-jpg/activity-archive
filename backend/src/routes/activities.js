@@ -22,6 +22,11 @@ const {
   parseQuestions,
   validateQuestions,
 } = require('../ai/questions');
+const { buildTaggingPrompt, parseTags, validateTags } = require('../ai/tagging');
+const { filterValidLowerTags } = require('../tags');
+
+// 활동당 하위 태그 최대 개수(Requirement 5.1 / 12: 활동당 최대 5개).
+const MAX_TAGS_PER_ACTIVITY = 5;
 
 // 활동 유형: requirements.md Requirement 2.1 에 열거된 값으로 한정한다.
 const ACTIVITY_TYPES = Object.freeze(['인턴십', '대외활동', '프로젝트', '학업', '기타']);
@@ -271,6 +276,103 @@ function createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline })
       }
 
       return res.status(201).json({ source, questions: saved });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  // 태그 자동 부여 (Requirement 5.1, 5.3, 12.3, 12.4) — 8.1 공통 파이프라인 사용.
+  // - 답변별로 [답변 텍스트 + 태그 상수 목록 + START 표기] 프롬프트를 만들어 하위 태그를 판별한다.
+  // - 답변의 START 요소([A]/[R]/[T])에 맞는 태그를 우선 판별한다.
+  // - 활동 전체 기준 하위 태그 최대 5개까지만 부여한다(초과분은 버린다).
+  // - 목록 밖 값은 폐기한다. 자동 부여에 실패해도 답변 저장은 그대로 유지된다(재시도 없음).
+  router.post('/api/activities/:id/tags', async (req, res, next) => {
+    try {
+      const activity = await activityRepo.getById(Number(req.params.id));
+      if (!assertOwnership(res, activity, req.inviteCode)) return undefined;
+
+      const answers = await activityRepo.listAnswers(activity.id);
+      // 답변 텍스트가 있는 항목만 태그 판별 대상.
+      const answered = answers.filter((a) => typeof a.answer_text === 'string' && a.answer_text.trim().length > 0);
+
+      let remaining = MAX_TAGS_PER_ACTIVITY;
+      const usedGlobally = new Set(); // 활동 내 태그 중복 방지
+      let anyAssigned = false;
+
+      for (const answer of answered) {
+        if (remaining <= 0) break;
+        if (!aiPipeline) break;
+
+        // eslint-disable-next-line no-await-in-loop
+        const result = await aiPipeline.run({
+          prompt: buildTaggingPrompt(answer.start_element, answer.answer_text),
+          parse: parseTags,
+          validate: (parsed) => validateTags(parsed, answer.start_element),
+        });
+        if (!result.ok) continue; // 실패는 격리: 이 답변만 건너뛰고 답변 저장은 유지.
+
+        // 활동 전체 상한과 중복을 반영해 이 답변에 부여할 태그를 확정.
+        // 저장 경계에서 한 번 더 목록 밖 값을 폐기한다(Requirement 12.4, 방어적 검증).
+        const validated = filterValidLowerTags(result.value);
+        const forThisAnswer = [];
+        for (const tag of validated) {
+          if (remaining <= 0) break;
+          if (usedGlobally.has(tag)) continue;
+          usedGlobally.add(tag);
+          forThisAnswer.push(tag);
+          remaining -= 1;
+        }
+        if (forThisAnswer.length > 0) {
+          // eslint-disable-next-line no-await-in-loop
+          await activityRepo.setAnswerTags(answer.id, forThisAnswer);
+          anyAssigned = true;
+        }
+      }
+
+      // 실패/미부여여도 200 으로 정상 응답(답변은 이미 저장돼 있음).
+      const refreshed = await activityRepo.listAnswers(activity.id);
+      return res.json({
+        assigned: anyAssigned,
+        answers: refreshed.map(toQuestion),
+      });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  // 수동 태그 편집 (Requirement 5.2) — 사용자가 태그를 삭제·추가한다. AI 미호출.
+  // - 상수 목록 밖 값은 폐기하고, 활동 전체 5개 상한을 초과하면 400.
+  router.patch('/api/activities/:id/answers/:answerId/tags', async (req, res, next) => {
+    try {
+      const activity = await activityRepo.getById(Number(req.params.id));
+      if (!assertOwnership(res, activity, req.inviteCode)) return undefined;
+
+      const answer = await activityRepo.getAnswerById(Number(req.params.answerId));
+      if (!answer || answer.activity_id !== activity.id) {
+        return res.status(404).json({ error: 'not_found' });
+      }
+
+      const body = req.body || {};
+      if (!Array.isArray(body.tags)) {
+        return res.status(400).json({ error: 'invalid_field', field: 'tags' });
+      }
+
+      // 목록 밖 값 폐기 + 중복 제거.
+      const requested = filterValidLowerTags(body.tags);
+
+      // 활동 전체 상한 검사: 다른 답변에 부여된 태그 수 + 이번 요청 수.
+      const answers = await activityRepo.listAnswers(activity.id);
+      let otherCount = 0;
+      for (const a of answers) {
+        if (a.id === answer.id) continue;
+        otherCount += parseAssignedTags(a.assigned_tags).length;
+      }
+      if (otherCount + requested.length > MAX_TAGS_PER_ACTIVITY) {
+        return res.status(400).json({ error: 'tag_limit_exceeded', max: MAX_TAGS_PER_ACTIVITY });
+      }
+
+      const updated = await activityRepo.setAnswerTags(answer.id, requested);
+      return res.json({ answer: toQuestion(updated) });
     } catch (err) {
       return next(err);
     }

@@ -95,6 +95,21 @@ function createActivityRepository(db) {
     },
 
     /**
+     * 답변의 하위 태그 목록을 갱신한다(assigned_tags, JSON 배열 문자열로 저장).
+     * answer_text 는 건드리지 않는다. 태그 값 검증·상한은 호출부(라우트)에서 수행한다.
+     * @param {number} answerId
+     * @param {string[]} tagArray
+     * @returns {object|null} 갱신된 답변
+     */
+    async setAnswerTags(answerId, tagArray) {
+      const { rows } = await db.query(
+        'UPDATE activity_answer SET assigned_tags = ? WHERE id = ? RETURNING *',
+        [JSON.stringify(tagArray), answerId]
+      );
+      return rows[0] || null;
+    },
+
+    /**
      * 답변 텍스트만 갱신한다(Requirement 2.3).
      * - assigned_tags 는 건드리지 않아 기존 태그가 유지된다.
      * - AI 재호출은 이 계층 밖(라우트)에서도 발생하지 않는다.

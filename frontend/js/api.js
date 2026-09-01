@@ -142,6 +142,33 @@ export function updateAnswer(activityId, answerId, answerText) {
   });
 }
 
+/** 태그를 자동 부여한다(8.1 파이프라인). 실패해도 답변은 유지된다. */
+export function assignTags(activityId) {
+  return apiRequest(`/api/activities/${activityId}/tags`, { method: 'POST' });
+}
+
+/** 특정 답변의 태그 목록을 수동으로 설정한다(삭제·추가). */
+export function setAnswerTags(activityId, answerId, tags) {
+  return apiRequest(`/api/activities/${activityId}/answers/${answerId}/tags`, {
+    method: 'PATCH',
+    body: { tags },
+  });
+}
+
+/** 태그 상수 목록(하위 태그)을 제공한다. 서버 상수와 동일해야 한다. */
+export const LOWER_TAGS = [
+  '문서작성', '발표전달', '다국어소통', '합의도출',
+  '데이터분석', '통계해석', '정량성과',
+  '문제정의', '원인분석', '대안탐색', '문제해결완수',
+  '학습주도', '목표설정', '회고성찰', '한계인식',
+  '일정관리', '예산관리', '우선순위조정', '목표달성',
+  '갈등조정', '협업', '설득', '관계형성',
+  '자료조사', '정보구조화', '정보검증',
+  '도구활용', '신기술습득', '프로세스개선',
+  '이해관계자조율', '다문화협업', '규정준수',
+  '책임완수', '원칙준수', '신뢰구축',
+];
+
 // --- 빠른 기록 API (Requirement 3) ---
 
 /** 한 줄 기록을 저장한다(AI 미호출). */
@@ -174,6 +201,8 @@ export const api = {
   deleteActivity,
   generateQuestions,
   updateAnswer,
+  assignTags,
+  setAnswerTags,
   createQuickNote,
   listQuickNotes,
   convertQuickNote,

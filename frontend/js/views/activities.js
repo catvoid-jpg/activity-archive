@@ -7,7 +7,7 @@
 //
 // 모바일 우선 단일 컬럼. 화면 전환은 root.innerHTML 교체로 처리한다.
 
-import { api } from '../api.js';
+import { api, LOWER_TAGS } from '../api.js';
 import { escapeHtml, daysSinceLastRecord } from '../util.js';
 
 // 활동 유형: requirements.md Requirement 2.1 의 5종.
@@ -172,7 +172,28 @@ function showForm() {
 // 심화 질문/답변 화면 안내(Requirement 10.3): 답변이 그대로 기록으로 남는다는 점.
 const ANSWER_NOTICE = '여기에 답한 내용은 그대로 기록으로 남습니다. 대신 작성해 드리지 않습니다.';
 
-/** 답변 가능한 심화 질문 항목을 렌더한다. 각 항목은 textarea + 저장 버튼(PATCH). */
+/** 답변의 태그 칩(삭제 가능) + 추가 드롭다운을 렌더한다. */
+function renderAnswerTags(a) {
+  const chips = (a.tags || [])
+    .map(
+      (t) => `<span class="tag tag--editable">${escapeHtml(t)}<button class="tag__remove"
+        data-action="remove-tag" data-answer-id="${a.id}" data-tag="${escapeHtml(t)}" aria-label="태그 삭제">×</button></span>`
+    )
+    .join('');
+  const options = LOWER_TAGS.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  return `
+    <div class="answer__tags" data-answer-id="${a.id}">
+      <div class="tags">${chips || '<span class="muted">태그 없음</span>'}</div>
+      <div class="form__row">
+        <select class="form__input tag__select" data-answer-id="${a.id}">
+          <option value="">태그 추가…</option>${options}
+        </select>
+        <button class="link-button" data-action="add-tag" data-answer-id="${a.id}">추가</button>
+      </div>
+    </div>`;
+}
+
+/** 답변 가능한 심화 질문 항목을 렌더한다. textarea + 저장 버튼(PATCH) + 태그 편집. */
 function renderAnswerItem(a) {
   return `
     <div class="answer" data-answer-id="${a.id}">
@@ -180,6 +201,7 @@ function renderAnswerItem(a) {
       <textarea class="form__input answer__input" rows="2" data-answer-id="${a.id}"
         placeholder="답변을 입력하거나 비워 두고 건너뛸 수 있습니다.">${escapeHtml(a.answerText) || ''}</textarea>
       <button class="link-button" data-action="save-answer" data-answer-id="${a.id}">답변 저장</button>
+      ${renderAnswerTags(a)}
     </div>`;
 }
 
@@ -237,6 +259,12 @@ async function showDetail(id) {
 
       <h2 class="start__h">태그</h2>
       <div class="tags">${tags || '<span class="muted">부여된 태그가 없습니다.</span>'}</div>
+      ${
+        hasQuestions
+          ? `<button class="form__button form__button--ghost" data-action="assign-tags">태그 자동 부여</button>
+             <p class="muted" id="tag-status" role="status" aria-live="polite"></p>`
+          : ''
+      }
 
       <button class="form__button form__button--danger" data-action="delete">활동 삭제</button>
     </section>
@@ -283,6 +311,64 @@ async function showDetail(id) {
         if (status) status.textContent = '저장에 실패했습니다.';
       } finally {
         btn.disabled = false;
+      }
+    });
+  });
+
+  // 태그 자동 부여(파이프라인). 실패해도 답변은 유지되므로 안내만 갱신 후 다시 그린다.
+  const assignBtn = root.querySelector('[data-action="assign-tags"]');
+  if (assignBtn) {
+    assignBtn.addEventListener('click', async () => {
+      const status = root.querySelector('#tag-status');
+      assignBtn.disabled = true;
+      if (status) status.textContent = '태그를 판별하는 중…';
+      try {
+        const result = await api.assignTags(id);
+        if (status) status.textContent = result.assigned ? '' : '자동 부여된 태그가 없습니다. 직접 추가할 수 있습니다.';
+        showDetail(id);
+      } catch (err) {
+        if (status) status.textContent = '태그 부여에 실패했습니다. 직접 추가할 수 있습니다.';
+        assignBtn.disabled = false;
+      }
+    });
+  }
+
+  // 현재 답변의 태그 목록을 화면에서 읽어 서버에 반영하는 헬퍼.
+  function currentTagsOf(answerId) {
+    return [...root.querySelectorAll(`.answer[data-answer-id="${answerId}"] .tag__remove`)].map(
+      (b) => b.dataset.tag
+    );
+  }
+
+  // 태그 삭제(칩의 × 버튼).
+  root.querySelectorAll('[data-action="remove-tag"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const answerId = Number(btn.dataset.answerId);
+      const next = currentTagsOf(answerId).filter((t) => t !== btn.dataset.tag);
+      try {
+        await api.setAnswerTags(id, answerId, next);
+        showDetail(id);
+      } catch (err) {
+        /* 실패 시 화면 유지 */
+      }
+    });
+  });
+
+  // 태그 추가(드롭다운 선택 후 추가).
+  root.querySelectorAll('[data-action="add-tag"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const answerId = Number(btn.dataset.answerId);
+      const select = root.querySelector(`select.tag__select[data-answer-id="${answerId}"]`);
+      const value = select && select.value;
+      if (!value) return;
+      const current = currentTagsOf(answerId);
+      if (current.includes(value)) return; // 중복 방지
+      try {
+        await api.setAnswerTags(id, answerId, [...current, value]);
+        showDetail(id);
+      } catch (err) {
+        const status = root.querySelector('#tag-status');
+        if (status) status.textContent = '태그 추가에 실패했습니다(활동당 최대 5개).';
       }
     });
   });

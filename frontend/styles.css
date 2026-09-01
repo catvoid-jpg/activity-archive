@@ -252,3 +252,28 @@ textarea.form__input {
   resize: vertical;
   font-family: inherit;
 }
+
+/* 태그 편집 */
+.answer__tags {
+  margin-top: 8px;
+}
+
+.tag--editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag__remove {
+  padding: 0;
+  background: none;
+  border: none;
+  color: #2f6fed;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tag__select {
+  flex: 1;
+}

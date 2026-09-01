@@ -79,6 +79,8 @@ function createAiPipeline(deps) {
         text = await client.generate(prompt);
       } catch (err) {
         // 네트워크/HTTP/빈 응답 등: 재시도 없이 실패 처리.
+        // 원인 파악을 위해 오류 코드/메시지를 로그로 남긴다(비밀값은 포함되지 않음).
+        console.warn('[ai_pipeline] call_failed:', (err && err.code) || 'unknown', '-', err && err.message);
         return fail('call_failed');
       }
       usageCounter.increment();
@@ -88,6 +90,7 @@ function createAiPipeline(deps) {
       try {
         parsed = parse(text);
       } catch (err) {
+        console.warn('[ai_pipeline] parse_failed:', err && err.message);
         return fail('parse_failed');
       }
 

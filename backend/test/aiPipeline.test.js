@@ -9,7 +9,7 @@ const { createUsageCounter } = require('../src/ai/usageCounter');
 // 주입용 모킹 클라이언트 팩토리.
 function mockClient({ configured = true, generate } = {}) {
   return {
-    model: 'gemini-2.0-flash',
+    model: 'gemini-1.5-flash',
     isConfigured: () => configured,
     generate: generate || (async () => 'MOCK'),
   };

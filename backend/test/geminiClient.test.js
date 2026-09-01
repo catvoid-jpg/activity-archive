@@ -28,7 +28,7 @@ test('키 미설정이면 not_configured 로 실패한다', async () => {
   await assert.rejects(() => client.generate('p'), (err) => err instanceof AiError && err.code === 'not_configured');
 });
 
-test('generate 는 gemini-2.0-flash 엔드포인트에 키 헤더로 요청한다', async () => {
+test('generate 는 gemini-1.5-flash 엔드포인트에 키 헤더로 요청한다', async () => {
   let captured = null;
   const client = createGeminiClient({
     getApiKey: () => 'test-key',
@@ -42,7 +42,7 @@ test('generate 는 gemini-2.0-flash 엔드포인트에 키 헤더로 요청한�
 
   const text = await client.generate('프롬프트');
   assert.strictEqual(text, '생성된 텍스트');
-  assert.ok(captured.url.includes('gemini-2.0-flash:generateContent'), captured.url);
+  assert.ok(captured.url.includes('gemini-1.5-flash:generateContent'), captured.url);
   assert.strictEqual(captured.opts.headers['x-goog-api-key'], 'test-key');
   // 키가 URL 쿼리스트링에 노출되지 않아야 한다.
   assert.ok(!captured.url.includes('test-key'));

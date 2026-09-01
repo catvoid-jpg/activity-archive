@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Google Gemini 클라이언트 (모델: gemini-2.0-flash).
+ * Google Gemini 클라이언트 (모델: gemini-1.5-flash).
  *
  * - API 키는 config(process.env.AI_API_KEY)에서만 읽는다. 소스에 하드코딩하지 않는다.
  * - generateContent REST 엔드포인트를 호출하고 응답 텍스트를 추출한다.
@@ -13,7 +13,7 @@
 
 const { config } = require('../config');
 
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_MODEL = 'gemini-1.5-flash';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 class AiError extends Error {

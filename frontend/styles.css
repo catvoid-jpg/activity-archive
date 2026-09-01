@@ -277,3 +277,24 @@ textarea.form__input {
 .tag__select {
   flex: 1;
 }
+
+/* 소재 추천 */
+.rec-item {
+  padding: 12px 4px;
+  border-top: 1px solid #eee;
+}
+
+.rec-item__title {
+  margin: 0 0 2px;
+  font-size: 1rem;
+}
+
+.rec-copy {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f4f6fb;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+  overflow-x: auto;
+}

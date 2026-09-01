@@ -22,6 +22,8 @@ const { createQuickNoteRepository } = require('./db/quickNoteRepository');
 const { createSessionRouter } = require('./routes/session');
 const { createActivitiesRouter } = require('./routes/activities');
 const { createQuickNotesRouter } = require('./routes/quickNotes');
+const { createRecommendationRepository } = require('./db/recommendationRepository');
+const { createRecommendationsRouter } = require('./routes/recommendations');
 const { createGeminiClient } = require('./ai/geminiClient');
 const { createAiPipeline } = require('./ai/pipeline');
 
@@ -38,6 +40,7 @@ async function createApp(options = {}) {
   const inviteCodeRepo = createInviteCodeRepository(db);
   const activityRepo = createActivityRepository(db);
   const quickNoteRepo = createQuickNoteRepository(db);
+  const recommendationRepo = createRecommendationRepository(db);
   const requireInviteCode = createRequireInviteCode(inviteCodeRepo);
   const onboardingService = createOnboardingService({ db, activityRepo, inviteCodeRepo });
 
@@ -70,6 +73,9 @@ async function createApp(options = {}) {
 
   // 빠른 기록 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
   app.use(createQuickNotesRouter({ quickNoteRepo, activityRepo, requireInviteCode }));
+
+  // 소재 추천 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
+  app.use(createRecommendationsRouter({ recommendationRepo, requireInviteCode, aiPipeline }));
 
   // 알 수 없는 API 경로 처리(정적 서빙 이전에 API 404 를 확정).
   app.use('/api', (req, res) => {

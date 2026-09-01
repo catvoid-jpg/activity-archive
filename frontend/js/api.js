@@ -155,6 +155,11 @@ export function setAnswerTags(activityId, answerId, tags) {
   });
 }
 
+/** 지원서 문항으로 소재를 추천받는다. */
+export function recommend(questionText) {
+  return apiRequest('/api/recommendations', { method: 'POST', body: { questionText } });
+}
+
 /** 태그 상수 목록(하위 태그)을 제공한다. 서버 상수와 동일해야 한다. */
 export const LOWER_TAGS = [
   '문서작성', '발표전달', '다국어소통', '합의도출',
@@ -206,5 +211,6 @@ export const api = {
   createQuickNote,
   listQuickNotes,
   convertQuickNote,
+  recommend,
   health: () => apiRequest('/api/health', { skipInviteCode: true }),
 };

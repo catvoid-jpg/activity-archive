@@ -40,6 +40,11 @@ function createActivityRepository(db) {
   const listAnswersStmt = db.prepare(
     `SELECT * FROM activity_answer WHERE activity_id = ? ORDER BY id ASC`
   );
+  const getAnswerStmt = db.prepare(`SELECT * FROM activity_answer WHERE id = ?`);
+  // 답변 텍스트만 갱신한다. assigned_tags 는 SET 절에 포함하지 않으므로 기존 태그가 그대로 유지된다.
+  const updateAnswerTextStmt = db.prepare(
+    `UPDATE activity_answer SET answer_text = ? WHERE id = ?`
+  );
 
   return {
     IMMUTABLE_META_COLUMNS,
@@ -80,6 +85,23 @@ function createActivityRepository(db) {
     /** 활동에 속한 심화 질문 답변 목록(생성 순). */
     listAnswers(activityId) {
       return listAnswersStmt.all(activityId);
+    },
+
+    /** 답변 단건 조회. 없으면 null. */
+    getAnswerById(answerId) {
+      return getAnswerStmt.get(answerId) || null;
+    },
+
+    /**
+     * 답변 텍스트만 갱신한다(Requirement 2.3).
+     * - assigned_tags 는 건드리지 않아 기존 태그가 유지된다.
+     * - AI 재호출은 이 계층 밖(라우트)에서도 발생하지 않는다.
+     * @returns {object|null} 갱신된 답변, 대상이 없으면 null
+     */
+    updateAnswerText(answerId, answerText) {
+      const result = updateAnswerTextStmt.run(answerText, answerId);
+      if (result.changes === 0) return null;
+      return this.getAnswerById(answerId);
     },
 
     listByOwner(inviteCode) {

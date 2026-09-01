@@ -1,0 +1,219 @@
+// 활동 기록 화면 (Requirement 2.1, 2.2, 7.1, 7.2, 7.3 / 4.3).
+//
+// - 활동 목록 화면: 소유 활동을 목록으로, 마지막 기록 이후 경과일 표시.
+// - 활동 등록 폼: 활동명·기간·소속·유형(선택)·Situation·Task 입력.
+//   입력 화면에 제3자 실명 미사용 안내 문구 포함(Requirement 17.2).
+// - 활동 상세 화면: START 5요소 + 부여된 태그 표시.
+//
+// 모바일 우선 단일 컬럼. 화면 전환은 root.innerHTML 교체로 처리한다.
+
+import { api } from '../api.js';
+import { escapeHtml, daysSinceLastRecord } from '../util.js';
+
+// 활동 유형: requirements.md Requirement 2.1 의 5종.
+const ACTIVITY_TYPES = ['인턴십', '대외활동', '프로젝트', '학업', '기타'];
+
+// 제3자 실명 미사용 안내(Requirement 17.2). 고정 텍스트.
+const THIRD_PARTY_NOTICE = '기록에는 다른 사람의 실명을 쓰지 말아 주세요.';
+
+let root = null;
+
+/** 활동 화면의 진입점. 목록 화면을 렌더한다. */
+export function renderActivities(mountEl) {
+  root = mountEl;
+  showList();
+}
+
+// --- 목록 화면 ---
+
+async function showList() {
+  root.innerHTML = `<section class="card"><p class="muted">불러오는 중…</p></section>`;
+  let activities = [];
+  try {
+    const data = await api.listActivities();
+    activities = data.activities || [];
+  } catch (err) {
+    root.innerHTML = `<section class="card"><p class="error">목록을 불러오지 못했습니다.</p></section>`;
+    return;
+  }
+
+  const elapsed = daysSinceLastRecord(activities.map((a) => a.createdAt));
+  const elapsedText =
+    elapsed == null
+      ? '아직 기록이 없습니다.'
+      : `마지막 기록 이후 ${elapsed}일 지났습니다.`;
+
+  const items = activities.length
+    ? activities
+        .map(
+          (a) => `
+      <li class="list__item" data-id="${a.id}">
+        <button class="list__link" data-action="open" data-id="${a.id}">
+          <span class="list__title">${escapeHtml(a.name)}</span>
+          <span class="list__meta">${escapeHtml(a.type)} · ${escapeHtml(a.period)}</span>
+        </button>
+      </li>`
+        )
+        .join('')
+    : `<li class="muted">등록된 활동이 없습니다.</li>`;
+
+  root.innerHTML = `
+    <section class="card">
+      <h1>활동 기록</h1>
+      <p class="muted" id="elapsed">${escapeHtml(elapsedText)}</p>
+      <button class="form__button" data-action="new">활동 등록</button>
+      <ul class="list">${items}</ul>
+    </section>
+  `;
+
+  root.querySelector('[data-action="new"]').addEventListener('click', showForm);
+  root.querySelectorAll('[data-action="open"]').forEach((btn) => {
+    btn.addEventListener('click', () => showDetail(Number(btn.dataset.id)));
+  });
+}
+
+// --- 등록 폼 화면 ---
+
+function showForm() {
+  const typeOptions = ACTIVITY_TYPES.map(
+    (t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`
+  ).join('');
+
+  root.innerHTML = `
+    <section class="card">
+      <h1>활동 등록</h1>
+      <p class="notice">${escapeHtml(THIRD_PARTY_NOTICE)}</p>
+      <form id="activity-form" class="form" novalidate>
+        <label class="form__label" for="f-name">활동명</label>
+        <input class="form__input" id="f-name" name="name" type="text" required />
+
+        <label class="form__label" for="f-period">활동 기간</label>
+        <input class="form__input" id="f-period" name="period" type="text" placeholder="예: 2025-03 ~ 2025-08" required />
+
+        <label class="form__label" for="f-affiliation">소속 기관</label>
+        <input class="form__input" id="f-affiliation" name="affiliation" type="text" required />
+
+        <label class="form__label" for="f-type">활동 유형</label>
+        <select class="form__input" id="f-type" name="type" required>${typeOptions}</select>
+
+        <label class="form__label" for="f-situation">Situation (상황)</label>
+        <textarea class="form__input" id="f-situation" name="situation" rows="3" required></textarea>
+
+        <label class="form__label" for="f-task">Task (과제)</label>
+        <textarea class="form__input" id="f-task" name="task" rows="3" required></textarea>
+
+        <div class="form__row">
+          <button class="form__button" id="f-submit" type="submit">등록</button>
+          <button class="form__button form__button--ghost" id="f-cancel" type="button">취소</button>
+        </div>
+        <p class="form__message" id="f-message" role="alert" aria-live="polite"></p>
+      </form>
+    </section>
+  `;
+
+  const form = root.querySelector('#activity-form');
+  const submit = root.querySelector('#f-submit');
+  const message = root.querySelector('#f-message');
+  root.querySelector('#f-cancel').addEventListener('click', showList);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    message.textContent = '';
+
+    const input = {
+      name: form.name.value.trim(),
+      period: form.period.value.trim(),
+      affiliation: form.affiliation.value.trim(),
+      type: form.type.value,
+      situation: form.situation.value.trim(),
+      task: form.task.value.trim(),
+    };
+
+    if (!input.name || !input.period || !input.affiliation || !input.situation || !input.task) {
+      message.textContent = '모든 항목을 입력해 주세요.';
+      return;
+    }
+
+    submit.disabled = true;
+    try {
+      const created = await api.createActivity(input);
+      showDetail(created.activity.id);
+    } catch (err) {
+      message.textContent =
+        err.kind === 'network'
+          ? '네트워크 연결을 확인해 주세요.'
+          : '등록에 실패했습니다. 입력을 확인해 주세요.';
+      submit.disabled = false;
+    }
+  });
+}
+
+// --- 상세 화면 ---
+
+function renderAnswerList(answers) {
+  if (!answers || answers.length === 0) {
+    return '<p class="muted">답변이 없습니다.</p>';
+  }
+  return answers
+    .map(
+      (a) => `
+      <div class="answer">
+        <p class="answer__q">${escapeHtml(a.questionText)}</p>
+        <p class="answer__a">${escapeHtml(a.answerText) || '<span class="muted">미작성</span>'}</p>
+      </div>`
+    )
+    .join('');
+}
+
+async function showDetail(id) {
+  root.innerHTML = `<section class="card"><p class="muted">불러오는 중…</p></section>`;
+  let activity;
+  try {
+    const data = await api.getActivity(id);
+    activity = data.activity;
+  } catch (err) {
+    root.innerHTML = `<section class="card"><p class="error">활동을 불러오지 못했습니다.</p>
+      <button class="form__button form__button--ghost" data-action="back">목록으로</button></section>`;
+    root.querySelector('[data-action="back"]').addEventListener('click', showList);
+    return;
+  }
+
+  const s = activity.start;
+  const tags = (activity.tags || [])
+    .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
+    .join('');
+
+  root.innerHTML = `
+    <section class="card">
+      <button class="form__button form__button--ghost" data-action="back">← 목록</button>
+      <h1>${escapeHtml(activity.name)}</h1>
+      <p class="muted">${escapeHtml(activity.type)} · ${escapeHtml(activity.period)} · ${escapeHtml(activity.affiliation)}</p>
+
+      <h2 class="start__h">Situation</h2>
+      <p class="start__body">${escapeHtml(s.situation)}</p>
+      <h2 class="start__h">Task</h2>
+      <p class="start__body">${escapeHtml(s.task)}</p>
+      <h2 class="start__h">Action</h2>
+      ${renderAnswerList(s.action)}
+      <h2 class="start__h">Result</h2>
+      ${renderAnswerList(s.result)}
+      <h2 class="start__h">Taken</h2>
+      ${renderAnswerList(s.taken)}
+
+      <h2 class="start__h">태그</h2>
+      <div class="tags">${tags || '<span class="muted">부여된 태그가 없습니다.</span>'}</div>
+
+      <button class="form__button form__button--danger" data-action="delete">활동 삭제</button>
+    </section>
+  `;
+
+  root.querySelector('[data-action="back"]').addEventListener('click', showList);
+  root.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+    try {
+      await api.deleteActivity(id);
+      showList();
+    } catch (err) {
+      // 삭제 실패 시 화면 유지
+    }
+  });
+}

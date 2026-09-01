@@ -157,6 +157,37 @@ function createActivitiesRouter({ activityRepo, requireInviteCode }) {
     return res.status(204).end();
   });
 
+  // 심화 질문 답변 텍스트만 수정 (Requirement 2.3)
+  // - AI_Service 를 재호출하지 않고 기존 태그를 유지한다(라우트/레포 어디서도 AI·태그를 건드리지 않음).
+  // - 활동 메타(name/period/affiliation/type)는 이 엔드포인트로도, 다른 어떤 엔드포인트로도 수정할 수 없다.
+  router.patch('/api/activities/:id/answers/:answerId', (req, res) => {
+    const activity = activityRepo.getById(Number(req.params.id));
+    if (!assertOwnership(res, activity, req.inviteCode)) return;
+
+    const answer = activityRepo.getAnswerById(Number(req.params.answerId));
+    // 답변이 없거나 이 활동에 속하지 않으면 노출 방지를 위해 404.
+    if (!answer || answer.activity_id !== activity.id) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+
+    const body = req.body || {};
+    if (typeof body.answerText !== 'string') {
+      return res.status(400).json({ error: 'invalid_field', field: 'answerText' });
+    }
+
+    const updated = activityRepo.updateAnswerText(answer.id, body.answerText);
+    return res.json({
+      answer: {
+        id: updated.id,
+        startElement: updated.start_element,
+        questionText: updated.question_text,
+        answerText: updated.answer_text,
+        // 태그는 수정 대상이 아니며 기존 값이 그대로 유지된다.
+        tags: parseAssignedTags(updated.assigned_tags),
+      },
+    });
+  });
+
   return router;
 }
 

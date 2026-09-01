@@ -107,11 +107,37 @@ export async function createSession(inviteCode) {
   return data;
 }
 
+// --- 활동 기록 API (Requirement 2, 7) ---
+
+/** 소유 활동 목록을 조회한다. */
+export function listActivities() {
+  return apiRequest('/api/activities');
+}
+
+/** 활동 상세(START 5요소 + 태그)를 조회한다. */
+export function getActivity(id) {
+  return apiRequest(`/api/activities/${id}`);
+}
+
+/** 활동을 등록한다(활동명·기간·소속·유형·Situation·Task). */
+export function createActivity(input) {
+  return apiRequest('/api/activities', { method: 'POST', body: input });
+}
+
+/** 활동을 삭제한다(시드 포함). */
+export function deleteActivity(id) {
+  return apiRequest(`/api/activities/${id}`, { method: 'DELETE' });
+}
+
 export const api = {
   request: apiRequest,
   getInviteCode,
   setInviteCode,
   clearInviteCode,
   createSession,
+  listActivities,
+  getActivity,
+  createActivity,
+  deleteActivity,
   health: () => apiRequest('/api/health', { skipInviteCode: true }),
 };

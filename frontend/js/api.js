@@ -129,6 +129,19 @@ export function deleteActivity(id) {
   return apiRequest(`/api/activities/${id}`, { method: 'DELETE' });
 }
 
+/** 심화 질문을 생성한다(이미 있으면 기존 질문 반환). */
+export function generateQuestions(activityId) {
+  return apiRequest(`/api/activities/${activityId}/questions`, { method: 'POST' });
+}
+
+/** 심화 질문 답변 텍스트를 수정한다(AI 재호출 없음, 태그 유지). */
+export function updateAnswer(activityId, answerId, answerText) {
+  return apiRequest(`/api/activities/${activityId}/answers/${answerId}`, {
+    method: 'PATCH',
+    body: { answerText },
+  });
+}
+
 // --- 빠른 기록 API (Requirement 3) ---
 
 /** 한 줄 기록을 저장한다(AI 미호출). */
@@ -159,6 +172,8 @@ export const api = {
   getActivity,
   createActivity,
   deleteActivity,
+  generateQuestions,
+  updateAnswer,
   createQuickNote,
   listQuickNotes,
   convertQuickNote,

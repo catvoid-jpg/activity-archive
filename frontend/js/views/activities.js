@@ -169,19 +169,25 @@ function showForm() {
 
 // --- 상세 화면 ---
 
+// 심화 질문/답변 화면 안내(Requirement 10.3): 답변이 그대로 기록으로 남는다는 점.
+const ANSWER_NOTICE = '여기에 답한 내용은 그대로 기록으로 남습니다. 대신 작성해 드리지 않습니다.';
+
+/** 답변 가능한 심화 질문 항목을 렌더한다. 각 항목은 textarea + 저장 버튼(PATCH). */
+function renderAnswerItem(a) {
+  return `
+    <div class="answer" data-answer-id="${a.id}">
+      <p class="answer__q">${escapeHtml(a.questionText)}</p>
+      <textarea class="form__input answer__input" rows="2" data-answer-id="${a.id}"
+        placeholder="답변을 입력하거나 비워 두고 건너뛸 수 있습니다.">${escapeHtml(a.answerText) || ''}</textarea>
+      <button class="link-button" data-action="save-answer" data-answer-id="${a.id}">답변 저장</button>
+    </div>`;
+}
+
 function renderAnswerList(answers) {
   if (!answers || answers.length === 0) {
-    return '<p class="muted">답변이 없습니다.</p>';
+    return '<p class="muted">아직 질문이 없습니다.</p>';
   }
-  return answers
-    .map(
-      (a) => `
-      <div class="answer">
-        <p class="answer__q">${escapeHtml(a.questionText)}</p>
-        <p class="answer__a">${escapeHtml(a.answerText) || '<span class="muted">미작성</span>'}</p>
-      </div>`
-    )
-    .join('');
+  return answers.map(renderAnswerItem).join('');
 }
 
 async function showDetail(id) {
@@ -202,6 +208,9 @@ async function showDetail(id) {
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join('');
 
+  // 심화 질문(=답변 레코드)이 하나도 없으면 생성 버튼을 노출한다.
+  const hasQuestions = s.action.length + s.result.length + s.taken.length > 0;
+
   root.innerHTML = `
     <section class="card">
       <button class="form__button form__button--ghost" data-action="back">← 목록</button>
@@ -212,12 +221,19 @@ async function showDetail(id) {
       <p class="start__body">${escapeHtml(s.situation)}</p>
       <h2 class="start__h">Task</h2>
       <p class="start__body">${escapeHtml(s.task)}</p>
-      <h2 class="start__h">Action</h2>
-      ${renderAnswerList(s.action)}
-      <h2 class="start__h">Result</h2>
-      ${renderAnswerList(s.result)}
-      <h2 class="start__h">Taken</h2>
-      ${renderAnswerList(s.taken)}
+
+      <h2 class="start__h">심화 질문</h2>
+      <p class="notice">${escapeHtml(ANSWER_NOTICE)}</p>
+      ${
+        hasQuestions
+          ? `
+        <h3 class="start__sub">Action</h3>${renderAnswerList(s.action)}
+        <h3 class="start__sub">Result</h3>${renderAnswerList(s.result)}
+        <h3 class="start__sub">Taken</h3>${renderAnswerList(s.taken)}
+        <p class="muted" id="answer-status" role="status" aria-live="polite"></p>`
+          : `<button class="form__button" data-action="generate">심화 질문 생성</button>
+             <p class="form__message" id="gen-message" role="alert" aria-live="polite"></p>`
+      }
 
       <h2 class="start__h">태그</h2>
       <div class="tags">${tags || '<span class="muted">부여된 태그가 없습니다.</span>'}</div>
@@ -234,5 +250,40 @@ async function showDetail(id) {
     } catch (err) {
       // 삭제 실패 시 화면 유지
     }
+  });
+
+  // 심화 질문 생성 버튼
+  const genBtn = root.querySelector('[data-action="generate"]');
+  if (genBtn) {
+    genBtn.addEventListener('click', async () => {
+      const genMessage = root.querySelector('#gen-message');
+      genBtn.disabled = true;
+      if (genMessage) genMessage.textContent = '질문을 준비하는 중…';
+      try {
+        await api.generateQuestions(id);
+        showDetail(id); // 질문이 저장되었으니 상세를 다시 그린다.
+      } catch (err) {
+        if (genMessage) genMessage.textContent = '질문 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+        genBtn.disabled = false;
+      }
+    });
+  }
+
+  // 답변 저장(건너뛰기: 비워 두고 저장하지 않아도 됨). PATCH 로 텍스트만 갱신.
+  root.querySelectorAll('[data-action="save-answer"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const answerId = Number(btn.dataset.answerId);
+      const textarea = root.querySelector(`textarea[data-answer-id="${answerId}"]`);
+      const status = root.querySelector('#answer-status');
+      btn.disabled = true;
+      try {
+        await api.updateAnswer(id, answerId, textarea.value);
+        if (status) status.textContent = '저장되었습니다.';
+      } catch (err) {
+        if (status) status.textContent = '저장에 실패했습니다.';
+      } finally {
+        btn.disabled = false;
+      }
+    });
   });
 }

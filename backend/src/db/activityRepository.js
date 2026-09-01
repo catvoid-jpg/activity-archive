@@ -72,6 +72,28 @@ function createActivityRepository(db) {
       return rows[0] || null;
     },
 
+    /** 활동의 답변(=심화 질문) 개수. 재생성 방지 판단에 사용. */
+    async countAnswers(activityId) {
+      const { rows } = await db.query(
+        'SELECT COUNT(*) c FROM activity_answer WHERE activity_id = ?',
+        [activityId]
+      );
+      return Number(rows[0].c);
+    },
+
+    /**
+     * 심화 질문을 답변 레코드로 저장한다(answer_text 는 아직 비어 있음).
+     * assigned_tags 는 태그 부여(8.3) 이전이므로 비운다.
+     */
+    async insertQuestion(activityId, startElement, questionText) {
+      const { rows } = await db.query(
+        `INSERT INTO activity_answer (activity_id, start_element, question_text)
+         VALUES (?, ?, ?) RETURNING *`,
+        [activityId, startElement, questionText]
+      );
+      return rows[0];
+    },
+
     /**
      * 답변 텍스트만 갱신한다(Requirement 2.3).
      * - assigned_tags 는 건드리지 않아 기존 태그가 유지된다.

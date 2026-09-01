@@ -239,3 +239,16 @@ textarea.form__input {
   font-size: 0.85rem;
   cursor: pointer;
 }
+
+/* 심화 질문/답변 */
+.start__sub {
+  font-size: 0.85rem;
+  margin: 12px 0 4px;
+  color: #555;
+}
+
+.answer__input {
+  margin-top: 6px;
+  resize: vertical;
+  font-family: inherit;
+}

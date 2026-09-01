@@ -22,6 +22,8 @@ const { createQuickNoteRepository } = require('./db/quickNoteRepository');
 const { createSessionRouter } = require('./routes/session');
 const { createActivitiesRouter } = require('./routes/activities');
 const { createQuickNotesRouter } = require('./routes/quickNotes');
+const { createGeminiClient } = require('./ai/geminiClient');
+const { createAiPipeline } = require('./ai/pipeline');
 
 // 프론트엔드 정적 파일 위치(리포 구조: backend/, frontend/ 형제 디렉터리).
 const FRONTEND_DIR = path.resolve(__dirname, '..', '..', 'frontend');
@@ -38,6 +40,9 @@ async function createApp(options = {}) {
   const quickNoteRepo = createQuickNoteRepository(db);
   const requireInviteCode = createRequireInviteCode(inviteCodeRepo);
   const onboardingService = createOnboardingService({ db, activityRepo, inviteCodeRepo });
+
+  // AI 연동(8.1): 유일한 LLM 호출 지점. 테스트는 options.aiPipeline 로 주입해 모킹한다.
+  const aiPipeline = options.aiPipeline || createAiPipeline({ client: createGeminiClient() });
 
   const app = express();
   app.locals.db = db;
@@ -61,7 +66,7 @@ async function createApp(options = {}) {
   app.use(createSessionRouter({ inviteCodeRepo, onboardingService }));
 
   // 활동 기록 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
-  app.use(createActivitiesRouter({ activityRepo, requireInviteCode }));
+  app.use(createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline }));
 
   // 빠른 기록 라우트. 라우터 내부에서 소유권 미들웨어를 통과한다.
   app.use(createQuickNotesRouter({ quickNoteRepo, activityRepo, requireInviteCode }));

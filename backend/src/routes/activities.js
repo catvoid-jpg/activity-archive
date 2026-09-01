@@ -16,6 +16,12 @@
 
 const express = require('express');
 const { assertOwnership } = require('../middleware/ownership');
+const {
+  DEFAULT_QUESTIONS,
+  buildQuestionPrompt,
+  parseQuestions,
+  validateQuestions,
+} = require('../ai/questions');
 
 // 활동 유형: requirements.md Requirement 2.1 에 열거된 값으로 한정한다.
 const ACTIVITY_TYPES = Object.freeze(['인턴십', '대외활동', '프로젝트', '학업', '기타']);
@@ -95,12 +101,24 @@ function toListItem(activity) {
   };
 }
 
+/** 답변(=심화 질문) 레코드를 질문 응답 형태로 변환한다. */
+function toQuestion(row) {
+  return {
+    id: row.id,
+    startElement: row.start_element,
+    questionText: row.question_text,
+    answerText: row.answer_text,
+    tags: parseAssignedTags(row.assigned_tags),
+  };
+}
+
 /**
  * @param {object} deps
  * @param {ReturnType<import('../db/activityRepository').createActivityRepository>} deps.activityRepo
  * @param {import('express').RequestHandler} deps.requireInviteCode
+ * @param {object} [deps.aiPipeline] - 8.1 공통 파이프라인(심화 질문 생성용). 없으면 항상 기본 질문 사용.
  */
-function createActivitiesRouter({ activityRepo, requireInviteCode }) {
+function createActivitiesRouter({ activityRepo, requireInviteCode, aiPipeline }) {
   const router = express.Router();
 
   // 이 라우터의 모든 요청은 소유권 미들웨어를 통과한다.
@@ -203,6 +221,56 @@ function createActivitiesRouter({ activityRepo, requireInviteCode }) {
           tags: parseAssignedTags(updated.assigned_tags),
         },
       });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  // 심화 질문 생성 (Requirement 4.1, 4.3) — 8.1 공통 파이프라인 사용.
+  // - Situation·Task 기반 Action·Result·Taken 관점 질문을 최대 4개 생성한다.
+  // - 생성 실패(상한/입력초과/미설정/파싱·검증 실패)면 사전 정의 기본 질문으로 대체한다.
+  // - 생성된(또는 기본) 질문을 answer 레코드로 저장하고, 사용자는 이후 답변/건너뛰기 한다.
+  // - 이미 질문이 있으면 재생성하지 않고 기존 질문을 반환한다.
+  router.post('/api/activities/:id/questions', async (req, res, next) => {
+    try {
+      const activity = await activityRepo.getById(Number(req.params.id));
+      if (!assertOwnership(res, activity, req.inviteCode)) return undefined;
+
+      // 이미 심화 질문(답변 레코드)이 있으면 재생성하지 않는다.
+      const existingCount = await activityRepo.countAnswers(activity.id);
+      if (existingCount > 0) {
+        const answers = await activityRepo.listAnswers(activity.id);
+        return res.json({ source: 'existing', questions: answers.map(toQuestion) });
+      }
+
+      // 파이프라인으로 질문 생성 시도. 실패 시 기본 질문으로 대체.
+      let questions = null;
+      let source = 'default';
+      if (aiPipeline) {
+        const result = await aiPipeline.run({
+          prompt: buildQuestionPrompt(activity.situation, activity.task),
+          parse: parseQuestions,
+          validate: validateQuestions,
+        });
+        if (result.ok) {
+          questions = result.value;
+          source = 'generated';
+        }
+      }
+      if (!questions) {
+        questions = DEFAULT_QUESTIONS.map((q) => ({ ...q }));
+        source = 'default';
+      }
+
+      // 질문을 answer 레코드로 저장(answer_text 비어 있음).
+      const saved = [];
+      for (const q of questions) {
+        // eslint-disable-next-line no-await-in-loop
+        const row = await activityRepo.insertQuestion(activity.id, q.start_element, q.question_text);
+        saved.push(toQuestion(row));
+      }
+
+      return res.status(201).json({ source, questions: saved });
     } catch (err) {
       return next(err);
     }

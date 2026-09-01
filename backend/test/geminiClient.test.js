@@ -28,7 +28,7 @@ test('키 미설정이면 not_configured 로 실패한다', async () => {
   await assert.rejects(() => client.generate('p'), (err) => err instanceof AiError && err.code === 'not_configured');
 });
 
-test('generate 는 gemini-1.5-flash 엔드포인트에 키 헤더로 요청한다', async () => {
+test('generate 는 gemini-2.0-flash 엔드포인트에 키 헤더로 요청한다', async () => {
   let captured = null;
   const client = createGeminiClient({
     getApiKey: () => 'test-key',
@@ -42,9 +42,15 @@ test('generate 는 gemini-1.5-flash 엔드포인트에 키 헤더로 요청한�
 
   const text = await client.generate('프롬프트');
   assert.strictEqual(text, '생성된 텍스트');
-  assert.ok(captured.url.includes('gemini-1.5-flash:generateContent'), captured.url);
+  // 엔드포인트 형태: https://.../v1beta/models/gemini-2.0-flash:generateContent
+  assert.strictEqual(
+    captured.url,
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+  );
+  // 키는 x-goog-api-key 헤더로만 전달한다.
   assert.strictEqual(captured.opts.headers['x-goog-api-key'], 'test-key');
-  // 키가 URL 쿼리스트링에 노출되지 않아야 한다.
+  // 키가 URL 쿼리스트링(?key=)이나 URL 어디에도 노출되지 않아야 한다.
+  assert.ok(!captured.url.includes('key='));
   assert.ok(!captured.url.includes('test-key'));
   const body = JSON.parse(captured.opts.body);
   assert.strictEqual(body.contents[0].parts[0].text, '프롬프트');

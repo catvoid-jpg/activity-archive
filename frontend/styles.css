@@ -10,6 +10,21 @@ html,
 body {
   margin: 0;
   padding: 0;
+  /* 어떤 화면 너비에서도 가로 스크롤이 발생하지 않게 한다. */
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 긴 텍스트(URL·긴 단어)가 컨테이너를 넘지 않도록 줄바꿈한다. */
+p,
+li,
+h1,
+h2,
+h3,
+.answer__a,
+.start__body {
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 body {
@@ -20,8 +35,10 @@ body {
 }
 
 .app {
-  /* 세로 단일 컬럼 */
+  /* 모바일 우선 세로 단일 컬럼. 좁은 화면에서는 max-width 가 제약되지 않는다. */
   display: block;
+  max-width: 640px;
+  margin: 0 auto;
   padding: 16px;
 }
 
@@ -310,4 +327,14 @@ textarea.form__input {
   font-size: 0.85rem;
   color: #333;
   white-space: nowrap;
+}
+
+/* 넓은 화면 확장 (미디어 쿼리 기준점 1개).
+   태블릿용 중간 기준점을 두지 않는다. 다단 레이아웃/애니메이션 없이
+   콘텐츠 최대 너비 제한 + 가운데 정렬 + 여백 조정만 적용한다(Requirement 16). */
+@media (min-width: 768px) {
+  .app {
+    max-width: 720px;
+    padding: 24px;
+  }
 }
